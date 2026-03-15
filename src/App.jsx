@@ -127,10 +127,10 @@ export default function App() {
 
   const handleLike = async (idea) => {
     // TODO: re-enable vote protection before going live
-    // if (likedIds.includes(idea._id)) {
-    //   flash("⚠️ You already voted on this idea — votes can't be undone!");
-    //   return;
-    // }
+     if (likedIds.includes(idea._id)) {
+       flash("⚠️ You already voted on this idea — votes can't be undone!");
+       return;
+     }
     const newLikes = (idea.likes || 0) + 1;
     const oldStage = getStage(idea.likes || 0);
     const newStage = getStage(newLikes);
