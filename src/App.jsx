@@ -82,7 +82,7 @@ function HeartRow({ likes, ideaId, likedIds, onLike, heartColor, stage }) {
 
 export default function App() {
   const { database, useLiveQuery, useDocument } = useFireproof("alumni-idea-board-v1");
-  connect(database);
+  connect(database, import.meta.env.VITE_NETLIFY_TOKEN);
   const { docs: ideas } = useLiveQuery("createdAt", { descending: true });
   const [view, setView] = useState("board");
   const [filterTag, setFilterTag] = useState("All");
