@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { useFireproof } from "use-fireproof";
+import { connect } from "@fireproof/netlify";
 
 const AVATARS = ["🐅","🎓","🧠","🚀","🌟","💼","🦁","🏆","🌍","⚡"];
 const TAGS = ["💡 Idea", "🤝 Collaborate", "📢 Announce", "❓ Question"];
@@ -81,6 +82,7 @@ function HeartRow({ likes, ideaId, likedIds, onLike, heartColor, stage }) {
 
 export default function App() {
   const { database, useLiveQuery, useDocument } = useFireproof("alumni-idea-board-v1");
+  connect(database);
   const { docs: ideas } = useLiveQuery("createdAt", { descending: true });
   const [view, setView] = useState("board");
   const [filterTag, setFilterTag] = useState("All");
