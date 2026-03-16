@@ -200,7 +200,7 @@ export default function App() {
         .header-inner { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
         .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-        .ideas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        .ideas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; }
         .filter-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
         .tag-row { display: flex; flex-wrap: wrap; gap: 8px; }
         @media (max-width: 768px) {
@@ -425,7 +425,7 @@ export default function App() {
 }
 
 const s = {
-  root: { minHeight: "100vh", width: "100%", background: "#F0F4FF", fontFamily: "'DM Sans', sans-serif" },
+  root: { minHeight: "100vh", width: "100vw", maxWidth: "100vw", overflowX: "hidden", background: "#F0F4FF", fontFamily: "'DM Sans', sans-serif" },
   header: { background: "#1E3A8A", padding: "20px 24px", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 4px 24px rgba(0,0,0,0.25)", width: "100%" },
   eyebrow: { fontSize: 10, letterSpacing: "3px", color: "#93C5FD", fontWeight: 600, marginBottom: 4 },
   title: { fontFamily: "'Playfair Display', serif", fontSize: 30, fontWeight: 900, color: "#FFFFFF", lineHeight: 1, marginBottom: 6 },
@@ -442,7 +442,7 @@ const s = {
   stageBtnActive: { background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.4)", color: "#FFFFFF" },
   stagePill: { background: "rgba(255,255,255,0.1)", borderRadius: 10, padding: "1px 7px", fontSize: 11, color: "#93C5FD" },
   stagePillActive: { background: "rgba(255,255,255,0.2)", color: "#FFFFFF" },
-  body: { width: "100%", maxWidth: "100%", margin: "0 auto", padding: "32px 24px 60px" },
+  body: { width: "100%", maxWidth: "100%", margin: "0 auto", padding: "32px 40px 60px" },
   formCard: { background: "#fff", borderRadius: 16, padding: 36, boxShadow: "0 4px 32px rgba(0,0,0,0.08)", maxWidth: 680, margin: "0 auto", border: "1px solid #DBEAFE" },
   formTitle: { fontFamily: "'Playfair Display', serif", fontSize: 26, fontWeight: 700, color: "#1E3A8A", marginBottom: 6 },
   formSub: { fontSize: 13, color: "#6B7280", marginBottom: 12 },
