@@ -132,7 +132,6 @@ export default function App() {
       author_cohort: cohort.trim(),
       avatar: AVATARS[Math.floor(Math.random() * AVATARS.length)],
       likes: 0,
-      created_at: Date.now(),
     });
     if (error) { flash("❌ Error posting idea"); return; }
     setText("");
