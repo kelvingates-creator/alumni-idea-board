@@ -1,6 +1,10 @@
-import { useState } from "react"
-import { useFireproof } from "use-fireproof";
-import { connect } from "@fireproof/netlify";
+import { useState, useEffect } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
 const AVATARS = ["🐅","🎓","🧠","🚀","🌟","💼","🦁","🏆","🌍","⚡"];
 const TAGS = ["💡 Idea", "🤝 Collaborate", "📢 Announce", "❓ Question"];
@@ -57,22 +61,16 @@ function HeartRow({ likes, ideaId, likedIds, onLike, heartColor, stage }) {
       {Array.from({ length: total }).map((_, i) => {
         const isFilled = i < filled;
         return (
-          <span
-            key={i}
-            onClick={onLike}
+          <span key={i} onClick={onLike}
             title={alreadyVoted ? "You already voted" : "Cast your vote"}
             style={{
-              fontSize: 20,
-              cursor: alreadyVoted ? "not-allowed" : "pointer",
+              fontSize: 20, cursor: alreadyVoted ? "not-allowed" : "pointer",
               transition: "transform 0.15s, opacity 0.15s",
               transform: isFilled ? "scale(1.15)" : "scale(1)",
               opacity: isFilled ? 1 : alreadyVoted ? 0.2 : 0.35,
               userSelect: "none",
-            }}
-          >
-            {isFilled
-              ? (stage === "win" ? "⭐" : "❤️")
-              : "🤍"}
+            }}>
+            {isFilled ? (stage === "win" ? "⭐" : "❤️") : "🤍"}
           </span>
         );
       })}
@@ -81,46 +79,64 @@ function HeartRow({ likes, ideaId, likedIds, onLike, heartColor, stage }) {
 }
 
 export default function App() {
-  const { database, useLiveQuery, useDocument } = useFireproof("alumni-idea-board-v1");
-  connect(database, '', window.location.origin);
-  const { docs: ideas } = useLiveQuery("createdAt", { descending: true });
+  const [ideas, setIdeas] = useState([]);
   const [view, setView] = useState("board");
   const [filterTag, setFilterTag] = useState("All");
   const [filterStage, setFilterStage] = useState("All");
   const [name, setName] = useState("");
   const [cohort, setCohort] = useState("");
+  const [text, setText] = useState("");
+  const [tag, setTag] = useState(TAGS[0]);
   const [toast, setToast] = useState("");
+  const [loading, setLoading] = useState(true);
   const [likedIds, setLikedIds] = useState(() => {
     try { return JSON.parse(localStorage.getItem("likedIds") || "[]"); } catch { return []; }
   });
 
-  const { doc, merge, reset } = useDocument(() => ({
-    text: "",
-    tag: TAGS[0],
-    authorName: "",
-    authorCohort: "",
-    avatar: AVATARS[Math.floor(Math.random() * AVATARS.length)],
-    likes: 0,
-    createdAt: Date.now(),
-  }));
-
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
 
+  // Load ideas on mount
+  useEffect(() => {
+    fetchIdeas();
+    
+    // Real-time subscription
+    const channel = supabase
+      .channel("ideas-channel")
+      .on("postgres_changes", 
+        { event: "*", schema: "public", table: "ideas" },
+        () => { fetchIdeas(); }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, []);
+
+  const fetchIdeas = async () => {
+    const { data, error } = await supabase
+      .from("ideas")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (!error) setIdeas(data || []);
+    setLoading(false);
+  };
+
   const handleSubmit = async () => {
-    if (!doc.text.trim() || !name.trim()) {
+    if (!text.trim() || !name.trim()) {
       flash("⚠️ Name and idea are required");
       return;
     }
-    await database.put({
-      text: doc.text.trim(),
-      tag: doc.tag,
-      authorName: name.trim(),
-      authorCohort: cohort.trim(),
-      avatar: doc.avatar,
+    const { error } = await supabase.from("ideas").insert({
+      text: text.trim(),
+      tag,
+      author_name: name.trim(),
+      author_cohort: cohort.trim(),
+      avatar: AVATARS[Math.floor(Math.random() * AVATARS.length)],
       likes: 0,
-      createdAt: Date.now(),
+      created_at: Date.now(),
     });
-    reset();
+    if (error) { flash("❌ Error posting idea"); return; }
+    setText("");
+    setTag(TAGS[0]);
     setName("");
     setCohort("");
     setView("board");
@@ -128,18 +144,21 @@ export default function App() {
   };
 
   const handleLike = async (idea) => {
-    // TODO: re-enable vote protection before going live
-     if (likedIds.includes(idea._id)) {
-       flash("⚠️ You already voted on this idea — votes can't be undone!");
-       return;
-     }
+    if (likedIds.includes(idea.id)) {
+      flash("⚠️ You already voted on this idea!");
+      return;
+    }
     const newLikes = (idea.likes || 0) + 1;
     const oldStage = getStage(idea.likes || 0);
     const newStage = getStage(newLikes);
-    const updatedIds = [...likedIds, idea._id];
+    const updatedIds = [...likedIds, idea.id];
     setLikedIds(updatedIds);
     localStorage.setItem("likedIds", JSON.stringify(updatedIds));
-    await database.put({ ...idea, likes: newLikes });
+    const { error } = await supabase
+      .from("ideas")
+      .update({ likes: newLikes })
+      .eq("id", idea.id);
+    if (error) flash("❌ Error updating vote");
     if (newStage !== oldStage) {
       if (newStage === "collaborate") flash("🔥 This idea is gaining traction!");
       if (newStage === "win") flash("⭐ This idea just became a Community Win!");
@@ -147,7 +166,7 @@ export default function App() {
   };
 
   const handleDelete = async (idea) => {
-    await database.del(idea._id);
+    await supabase.from("ideas").delete().eq("id", idea.id);
     flash("🗑 Removed");
   };
 
@@ -280,8 +299,8 @@ export default function App() {
               <div className="tag-row">
                 {TAGS.map(t => (
                   <button key={t}
-                    style={{ ...s.tagChip, ...(doc.tag === t ? s.tagChipActive : {}) }}
-                    onClick={() => merge({ tag: t })}>{t}
+                    style={{ ...s.tagChip, ...(tag === t ? s.tagChipActive : {}) }}
+                    onClick={() => setTag(t)}>{t}
                   </button>
                 ))}
               </div>
@@ -290,7 +309,7 @@ export default function App() {
               <label style={s.label}>Your Idea *</label>
               <textarea style={s.textarea} rows={4}
                 placeholder="Share your idea, question, announcement, or win..."
-                value={doc.text} onChange={e => merge({ text: e.target.value })} />
+                value={text} onChange={e => setText(e.target.value)} />
             </div>
             <button style={s.submitBtn} onClick={handleSubmit}>Post to Board →</button>
           </div>
@@ -300,15 +319,20 @@ export default function App() {
         {view === "board" && (
           <>
             <div className="filter-bar">
-              {["All", ...TAGS].map(tag => (
-                <button key={tag}
-                  style={{ ...s.filterBtn, ...(filterTag === tag ? s.filterActive : {}) }}
-                  onClick={() => setFilterTag(tag)}>{tag}
+              {["All", ...TAGS].map(t => (
+                <button key={t}
+                  style={{ ...s.filterBtn, ...(filterTag === t ? s.filterActive : {}) }}
+                  onClick={() => setFilterTag(t)}>{t}
                 </button>
               ))}
             </div>
 
-            {filtered.length === 0 ? (
+            {loading ? (
+              <div style={s.empty}>
+                <div style={{ fontSize: 48, marginBottom: 12 }}>⏳</div>
+                <div style={s.emptyTitle}>Loading ideas...</div>
+              </div>
+            ) : filtered.length === 0 ? (
               <div style={s.empty}>
                 <div style={{ fontSize: 48, marginBottom: 12 }}>💭</div>
                 <div style={s.emptyTitle}>No ideas here yet</div>
@@ -322,13 +346,9 @@ export default function App() {
                 {filtered.map((idea, i) => {
                   const stage = getStage(idea.likes || 0);
                   const style = STAGE_STYLES[stage];
-                  const cardClass = stage === "win"
-                    ? "card-win"
-                    : stage === "collaborate"
-                    ? "card-collaborate"
-                    : "card";
+                  const cardClass = stage === "win" ? "card-win" : stage === "collaborate" ? "card-collaborate" : "card";
                   return (
-                    <div key={idea._id} className={cardClass}
+                    <div key={idea.id} className={cardClass}
                       style={{
                         ...s.card,
                         background: style.bg,
@@ -336,7 +356,6 @@ export default function App() {
                         animationDelay: `${Math.min(i * 0.05, 0.3)}s`,
                       }}>
 
-                      {/* Stage badge */}
                       {style.badge && (
                         <div style={{
                           ...s.stageBadgeCard,
@@ -348,15 +367,14 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* Card header */}
                       <div style={s.cardHeader}>
                         <div style={s.avatar}>{idea.avatar || "🐅"}</div>
                         <div style={{ flex: 1 }}>
                           <div style={{ ...s.authorName, color: style.tag }}>
-                            {idea.authorName || "Alumni"}
+                            {idea.author_name || "Alumni"}
                           </div>
-                          {idea.authorCohort && (
-                            <div style={s.authorCohort}>{idea.authorCohort}</div>
+                          {idea.author_cohort && (
+                            <div style={s.authorCohort}>{idea.author_cohort}</div>
                           )}
                         </div>
                         <button style={s.deleteX} onClick={() => handleDelete(idea)}>✕</button>
@@ -368,7 +386,6 @@ export default function App() {
 
                       <p style={s.cardText}>{idea.text}</p>
 
-                      {/* Progress bar */}
                       <div style={s.progressBar}>
                         <div style={{
                           ...s.progressFill,
@@ -377,12 +394,11 @@ export default function App() {
                         }} />
                       </div>
 
-                      {/* Hearts + time */}
                       <div style={s.cardFooter}>
-                        <span style={s.timeAgo}>{timeAgo(idea.createdAt)}</span>
+                        <span style={s.timeAgo}>{timeAgo(idea.created_at)}</span>
                         <HeartRow
                           likes={idea.likes || 0}
-                          ideaId={idea._id}
+                          ideaId={idea.id}
                           likedIds={likedIds}
                           onLike={() => handleLike(idea)}
                           heartColor={style.heartColor}
