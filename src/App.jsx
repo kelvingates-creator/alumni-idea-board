@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 
+
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -46,7 +47,7 @@ const STAGE_STYLES = {
 };
 
 function timeAgo(ts) {
-  const diff = Date.now() - ts;
+  const diff = Date.now() - new Date(ts).getTime();
   if (diff < 60000) return "just now";
   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
@@ -134,6 +135,7 @@ export default function App() {
       likes: 0,
     });
     if (error) { flash("❌ Error posting idea"); return; }
+    await fetchIdeas();
     setText("");
     setTag(TAGS[0]);
     setName("");
@@ -157,7 +159,8 @@ export default function App() {
       .from("ideas")
       .update({ likes: newLikes })
       .eq("id", idea.id);
-    if (error) flash("❌ Error updating vote");
+    if (error) { flash("❌ Error updating vote"); return; }
+    await fetchIdeas();
     if (newStage !== oldStage) {
       if (newStage === "collaborate") flash("🔥 This idea is gaining traction!");
       if (newStage === "win") flash("⭐ This idea just became a Community Win!");
