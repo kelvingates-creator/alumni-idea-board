@@ -53,9 +53,9 @@ function timeAgo(ts) {
   return `${Math.floor(diff / 86400000)}d ago`;
 }
 
-function HeartRow({ likes, ideaId, likedIds, onLike, heartColor, stage }) {
+function HeartRow({ likes, ideaId, votedIds, onLike, heartColor, stage }) {
   const { filled, total } = getStageHearts(likes);
-  const alreadyVoted = likedIds.includes(ideaId);
+  const alreadyVoted = votedIds.includes(ideaId);
   return (
     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
       {Array.from({ length: total }).map((_, i) => {
@@ -118,30 +118,18 @@ function AuthScreen({ onAuth }) {
         @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
         button { font-family: 'DM Sans', sans-serif; }
       `}</style>
-
       <div style={a.card}>
-        {/* Logo */}
         <div style={a.logo}>🐅</div>
         <h1 style={a.title}>THEE Alumni Network</h1>
         <p style={a.sub}>
           {mode === "signin" ? "Welcome back! Sign in to continue." : "Join the network — create your account."}
         </p>
-
-        {/* Toggle */}
         <div style={a.toggle}>
-          <button
-            style={{ ...a.toggleBtn, ...(mode === "signin" ? a.toggleActive : {}) }}
-            onClick={() => { setMode("signin"); setError(""); }}>
-            Sign In
-          </button>
-          <button
-            style={{ ...a.toggleBtn, ...(mode === "signup" ? a.toggleActive : {}) }}
-            onClick={() => { setMode("signup"); setError(""); }}>
-            Sign Up
-          </button>
+          <button style={{ ...a.toggleBtn, ...(mode === "signin" ? a.toggleActive : {}) }}
+            onClick={() => { setMode("signin"); setError(""); }}>Sign In</button>
+          <button style={{ ...a.toggleBtn, ...(mode === "signup" ? a.toggleActive : {}) }}
+            onClick={() => { setMode("signup"); setError(""); }}>Sign Up</button>
         </div>
-
-        {/* Form */}
         {mode === "signup" && (
           <div style={a.formGroup}>
             <label style={a.label}>Your Name *</label>
@@ -149,35 +137,28 @@ function AuthScreen({ onAuth }) {
               value={name} onChange={e => setName(e.target.value)} />
           </div>
         )}
-
         <div style={a.formGroup}>
           <label style={a.label}>Email *</label>
           <input style={a.input} type="email" placeholder="your@email.com"
             value={email} onChange={e => setEmail(e.target.value)} />
         </div>
-
         <div style={a.formGroup}>
           <label style={a.label}>Password *</label>
           <input style={a.input} type="password" placeholder="••••••••"
             value={password} onChange={e => setPassword(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleSubmit()} />
         </div>
-
         {error && (
           <div style={{
             ...a.error,
             background: error.includes("sent") ? "#F0FDF4" : "#FEF2F2",
             color: error.includes("sent") ? "#166534" : "#DC2626",
             border: `1px solid ${error.includes("sent") ? "#BBF7D0" : "#FECACA"}`,
-          }}>
-            {error}
-          </div>
+          }}>{error}</div>
         )}
-
         <button style={a.submitBtn} onClick={handleSubmit} disabled={loading}>
           {loading ? "Please wait..." : mode === "signin" ? "Sign In →" : "Create Account →"}
         </button>
-
         {mode === "signin" && (
           <button style={a.forgotBtn} onClick={handleForgotPassword}>
             Forgot password?
@@ -208,8 +189,10 @@ const a = {
 // ── Main App ─────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [ideas, setIdeas] = useState([]);
+  const [votedIds, setVotedIds] = useState([]);
   const [view, setView] = useState("board");
   const [filterTag, setFilterTag] = useState("All");
   const [filterStage, setFilterStage] = useState("All");
@@ -219,9 +202,6 @@ export default function App() {
   const [tag, setTag] = useState(TAGS[0]);
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
-  const [likedIds, setLikedIds] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("likedIds") || "[]"); } catch { return []; }
-  });
 
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
 
@@ -232,6 +212,8 @@ export default function App() {
       if (session?.user) {
         const userName = session.user.user_metadata?.full_name || session.user.email;
         setName(userName);
+        fetchProfile(session.user.id);
+        fetchVotes(session.user.id);
       }
       setAuthReady(true);
     });
@@ -241,6 +223,11 @@ export default function App() {
       if (session?.user) {
         const userName = session.user.user_metadata?.full_name || session.user.email;
         setName(userName);
+        fetchProfile(session.user.id);
+        fetchVotes(session.user.id);
+      } else {
+        setIsAdmin(false);
+        setVotedIds([]);
       }
     });
 
@@ -263,6 +250,23 @@ export default function App() {
     return () => supabase.removeChannel(channel);
   }, [authReady]);
 
+  const fetchProfile = async (userId) => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", userId)
+      .single();
+    if (data) setIsAdmin(data.is_admin || false);
+  };
+
+  const fetchVotes = async (userId) => {
+    const { data } = await supabase
+      .from("votes")
+      .select("idea_id")
+      .eq("user_id", userId);
+    if (data) setVotedIds(data.map(v => v.idea_id));
+  };
+
   const fetchIdeas = async () => {
     const { data, error } = await supabase
       .from("ideas")
@@ -276,6 +280,8 @@ export default function App() {
     await supabase.auth.signOut();
     setUser(null);
     setName("");
+    setIsAdmin(false);
+    setVotedIds([]);
   };
 
   const handleSubmit = async () => {
@@ -303,22 +309,32 @@ export default function App() {
   };
 
   const handleLike = async (idea) => {
-    if (likedIds.includes(idea.id)) {
+    if (votedIds.includes(idea.id)) {
       flash("⚠️ You already voted on this idea!");
       return;
     }
     const newLikes = (idea.likes || 0) + 1;
     const oldStage = getStage(idea.likes || 0);
     const newStage = getStage(newLikes);
-    const updatedIds = [...likedIds, idea.id];
-    setLikedIds(updatedIds);
-    localStorage.setItem("likedIds", JSON.stringify(updatedIds));
-    const { error } = await supabase
+
+    // Insert vote record into votes table
+    const { error: voteError } = await supabase
+      .from("votes")
+      .insert({ user_id: user.id, idea_id: idea.id });
+
+    if (voteError) { flash("❌ Error recording vote"); return; }
+
+    // Update likes count
+    const { error: likeError } = await supabase
       .from("ideas")
       .update({ likes: newLikes })
       .eq("id", idea.id);
-    if (error) { flash("❌ Error updating vote"); return; }
+
+    if (likeError) { flash("❌ Error updating vote"); return; }
+
+    setVotedIds([...votedIds, idea.id]);
     await fetchIdeas();
+
     if (newStage !== oldStage) {
       if (newStage === "collaborate") flash("🔥 This idea is gaining traction!");
       if (newStage === "win") flash("⭐ This idea just became a Community Win!");
@@ -326,7 +342,8 @@ export default function App() {
   };
 
   const handleDelete = async (idea) => {
-    if (idea.user_id && idea.user_id !== user?.id) {
+    const isMyIdea = idea.user_id === user?.id;
+    if (!isMyIdea && !isAdmin) {
       flash("⚠️ You can only delete your own ideas!");
       return;
     }
@@ -344,7 +361,6 @@ export default function App() {
   const winCount = ideas.filter(i => getStage(i.likes || 0) === "win").length;
   const colabCount = ideas.filter(i => getStage(i.likes || 0) === "collaborate").length;
 
-  // Show auth screen if not logged in
   if (!authReady) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F0F4FF" }}>
       <div style={{ fontSize: 48 }}>🐅</div>
@@ -409,7 +425,7 @@ export default function App() {
               <span style={{ color: "#fff", fontSize: 12, fontWeight: 600 }}>{ideas.length} ideas</span>
             </div>
             <div style={s.userPill}>
-              🐅 {user?.user_metadata?.full_name || user?.email?.split("@")[0]}
+              {isAdmin ? "👑" : "🐅"} {user?.user_metadata?.full_name || user?.email?.split("@")[0]}
             </div>
             <button style={s.signOutBtn} onClick={handleSignOut}>Sign Out</button>
             <button className="post-btn"
@@ -463,7 +479,7 @@ export default function App() {
             <div className="form-grid">
               <div style={s.formGroup}>
                 <label style={s.label}>Your Name *</label>
-                <input style={{ ...s.input, background: "#E8F0FE" }} 
+                <input style={{ ...s.input, background: "#E8F0FE" }}
                   value={name} readOnly />
               </div>
               <div style={s.formGroup}>
@@ -526,6 +542,7 @@ export default function App() {
                   const style = STAGE_STYLES[stage];
                   const cardClass = stage === "win" ? "card-win" : stage === "collaborate" ? "card-collaborate" : "card";
                   const isMyIdea = user && idea.user_id === user.id;
+                  const canDelete = isMyIdea || isAdmin;
                   return (
                     <div key={idea.id} className={cardClass}
                       style={{
@@ -552,12 +569,13 @@ export default function App() {
                           <div style={{ ...s.authorName, color: style.tag }}>
                             {idea.author_name || "Alumni"}
                             {isMyIdea && <span style={s.myBadge}>you</span>}
+                            {isAdmin && !isMyIdea && <span style={s.adminBadge}>admin</span>}
                           </div>
                           {idea.author_cohort && (
                             <div style={s.authorCohort}>{idea.author_cohort}</div>
                           )}
                         </div>
-                        {isMyIdea && (
+                        {canDelete && (
                           <button style={s.deleteX} onClick={() => handleDelete(idea)}>✕</button>
                         )}
                       </div>
@@ -581,7 +599,7 @@ export default function App() {
                         <HeartRow
                           likes={idea.likes || 0}
                           ideaId={idea.id}
-                          likedIds={likedIds}
+                          votedIds={votedIds}
                           onLike={() => handleLike(idea)}
                           heartColor={style.heartColor}
                           stage={stage}
@@ -647,6 +665,7 @@ const s = {
   avatar: { fontSize: 26, lineHeight: 1, flexShrink: 0 },
   authorName: { fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 6 },
   myBadge: { background: "#DBEAFE", color: "#1E3A8A", fontSize: 10, borderRadius: 10, padding: "1px 7px", fontWeight: 600 },
+  adminBadge: { background: "#FEF3C7", color: "#B45309", fontSize: 10, borderRadius: 10, padding: "1px 7px", fontWeight: 600 },
   authorCohort: { fontSize: 11, color: "#6B7280" },
   deleteX: { background: "transparent", border: "none", color: "#CBD5E1", cursor: "pointer", fontSize: 12, padding: "2px 4px", flexShrink: 0 },
   cardTag: { display: "inline-block", fontSize: 11, fontWeight: 600, borderRadius: 20, padding: "3px 10px", alignSelf: "flex-start" },
