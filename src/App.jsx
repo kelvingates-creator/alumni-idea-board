@@ -6,7 +6,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
-const AVATARS = ["🐅","🎓","🧠","🚀","🌟","💼","🦁","🏆","🌍","⚡"];
+const AVATARS = ["🐅","🎓","🧠","🚀","🌟","💼","🦁","🏆","🌍","⚡","🔥","💎","🎯","🦊","🐉","🎪","🌊","🦅","🎭","🏅"];
 const TAGS = ["💡 Idea", "🤝 Collaborate", "📢 Announce", "❓ Question"];
 const STAGE_THRESHOLDS = { collaborate: 5, win: 10 };
 
@@ -170,6 +170,245 @@ const a = {
   forgotBtn: { width: "100%", background: "transparent", border: "none", color: "#93C5FD", fontSize: 13, cursor: "pointer", textAlign: "center" },
 };
 
+// ── Profile Page ─────────────────────────────────────────
+function ProfilePage({ user, onClose }) {
+  const [profile, setProfile] = useState(null);
+  const [fullName, setFullName] = useState("");
+  const [bio, setBio] = useState("");
+  const [cohort, setCohort] = useState("");
+  const [avatar, setAvatar] = useState("🐅");
+  const [myIdeas, setMyIdeas] = useState([]);
+  const [myVotes, setMyVotes] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState("");
+
+  const flash = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
+
+  useEffect(() => {
+    fetchProfile();
+    fetchMyIdeas();
+    fetchMyVotes();
+  }, []);
+
+  const fetchProfile = async () => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single();
+    if (data) {
+      setProfile(data);
+      setFullName(data.full_name || user.user_metadata?.full_name || "");
+      setBio(data.bio || "");
+      setCohort(data.cohort || "");
+      setAvatar(data.avatar || "🐅");
+    }
+  };
+
+  const fetchMyIdeas = async () => {
+    const { data } = await supabase
+      .from("ideas")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+    setMyIdeas(data || []);
+  };
+
+  const fetchMyVotes = async () => {
+    const { count } = await supabase
+      .from("votes")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id);
+    setMyVotes(count || 0);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ full_name: fullName, bio, cohort, avatar })
+      .eq("id", user.id);
+    if (error) { flash("❌ Error saving profile"); setSaving(false); return; }
+
+    // Also update ideas with new name and avatar
+    await supabase
+      .from("ideas")
+      .update({ author_name: fullName, author_cohort: cohort, avatar })
+      .eq("user_id", user.id);
+
+    flash("✅ Profile saved!");
+    setSaving(false);
+  };
+
+  const wins = myIdeas.filter(i => getStage(i.likes || 0) === "win").length;
+  const collaborating = myIdeas.filter(i => getStage(i.likes || 0) === "collaborate").length;
+
+  return (
+    <div style={pr.root}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;600&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+        button { font-family: 'DM Sans', sans-serif; }
+        .avatar-option:hover { transform: scale(1.2); }
+        .avatar-option { transition: transform 0.15s; cursor: pointer; }
+      `}</style>
+
+      {/* Header */}
+      <div style={pr.header}>
+        <div style={pr.headerLeft}>
+          <span style={{ fontSize: 36 }}>{avatar}</span>
+          <div>
+            <h1 style={pr.title}>My Profile</h1>
+            <p style={pr.sub}>{user.email}</p>
+          </div>
+        </div>
+        <button style={pr.closeBtn} onClick={onClose}>← Back to Board</button>
+      </div>
+
+      <div style={pr.body}>
+
+        {/* Stats */}
+        <div style={pr.statsRow}>
+          {[
+            { icon: "💡", value: myIdeas.length, label: "Ideas Posted" },
+            { icon: "❤️", value: myVotes, label: "Votes Given" },
+            { icon: "🤝", value: collaborating, label: "Collaborating" },
+            { icon: "🎉", value: wins, label: "Wins" },
+          ].map(stat => (
+            <div key={stat.label} style={pr.statCard}>
+              <div style={{ fontSize: 24 }}>{stat.icon}</div>
+              <div style={pr.statValue}>{stat.value}</div>
+              <div style={pr.statLabel}>{stat.label}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={pr.grid}>
+          {/* Edit Profile */}
+          <div style={pr.card}>
+            <h2 style={pr.cardTitle}>Edit Profile</h2>
+
+            <div style={pr.formGroup}>
+              <label style={pr.label}>Display Name</label>
+              <input style={pr.input} placeholder="Your name"
+                value={fullName} onChange={e => setFullName(e.target.value)} />
+            </div>
+
+            <div style={pr.formGroup}>
+              <label style={pr.label}>Cohort / Year</label>
+              <input style={pr.input} placeholder="e.g. Class of 2019"
+                value={cohort} onChange={e => setCohort(e.target.value)} />
+            </div>
+
+            <div style={pr.formGroup}>
+              <label style={pr.label}>Bio</label>
+              <textarea style={pr.textarea} rows={3}
+                placeholder="Tell the alumni community about yourself..."
+                value={bio} onChange={e => setBio(e.target.value)} />
+            </div>
+
+            <div style={pr.formGroup}>
+              <label style={pr.label}>Choose Your Avatar</label>
+              <div style={pr.avatarGrid}>
+                {AVATARS.map(em => (
+                  <span key={em} className="avatar-option"
+                    onClick={() => setAvatar(em)}
+                    style={{
+                      fontSize: 28,
+                      padding: 6,
+                      borderRadius: 8,
+                      background: avatar === em ? "#DBEAFE" : "transparent",
+                      border: avatar === em ? "2px solid #3B82F6" : "2px solid transparent",
+                    }}>
+                    {em}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <button style={pr.saveBtn} onClick={handleSave} disabled={saving}>
+              {saving ? "Saving..." : "Save Profile →"}
+            </button>
+          </div>
+
+          {/* My Ideas */}
+          <div style={pr.card}>
+            <h2 style={pr.cardTitle}>My Ideas ({myIdeas.length})</h2>
+            {myIdeas.length === 0 ? (
+              <div style={pr.empty}>
+                <div style={{ fontSize: 36, marginBottom: 8 }}>💭</div>
+                <div style={{ color: "#6B7280", fontSize: 13 }}>No ideas posted yet</div>
+              </div>
+            ) : (
+              <div style={pr.ideaList}>
+                {myIdeas.map(idea => {
+                  const stage = getStage(idea.likes || 0);
+                  const style = STAGE_STYLES[stage];
+                  return (
+                    <div key={idea.id} style={{
+                      ...pr.ideaRow,
+                      borderLeft: `3px solid ${style.border}`,
+                      background: style.bg,
+                    }}>
+                      <div style={pr.ideaRowHeader}>
+                        <span style={{ ...pr.ideaTag, color: style.tag, background: `${style.border}22` }}>
+                          {idea.tag}
+                        </span>
+                        <span style={{ ...pr.ideaStage, color: style.tag }}>
+                          {style.label}
+                        </span>
+                        <span style={pr.ideaLikes}>❤️ {idea.likes || 0}</span>
+                      </div>
+                      <p style={pr.ideaText}>{idea.text}</p>
+                      <div style={pr.ideaMeta}>{timeAgo(idea.created_at)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {toast && <div style={pr.toast}>{toast}</div>}
+    </div>
+  );
+}
+
+const pr = {
+  root: { minHeight: "100vh", width: "100vw", maxWidth: "100vw", background: "#F0F4FF", fontFamily: "'DM Sans', sans-serif" },
+  header: { background: "#1E3A8A", padding: "20px 32px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 },
+  headerLeft: { display: "flex", alignItems: "center", gap: 14 },
+  title: { fontFamily: "'Playfair Display', serif", fontSize: 26, fontWeight: 900, color: "#FFFFFF" },
+  sub: { fontSize: 12, color: "#93C5FD" },
+  closeBtn: { background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 8, padding: "8px 18px", color: "#fff", fontSize: 13, cursor: "pointer" },
+  body: { padding: "32px" },
+  statsRow: { display: "flex", gap: 16, marginBottom: 28, flexWrap: "wrap" },
+  statCard: { flex: 1, minWidth: 100, background: "#fff", borderRadius: 12, padding: "20px", textAlign: "center", border: "1px solid #DBEAFE", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" },
+  statValue: { fontSize: 32, fontWeight: 700, color: "#1E3A8A", lineHeight: 1, margin: "6px 0" },
+  statLabel: { fontSize: 11, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.5px" },
+  grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 },
+  card: { background: "#fff", borderRadius: 16, padding: 28, boxShadow: "0 2px 12px rgba(0,0,0,0.07)", border: "1px solid #DBEAFE" },
+  cardTitle: { fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, color: "#1E3A8A", marginBottom: 20 },
+  formGroup: { marginBottom: 16 },
+  label: { display: "block", fontSize: 11, fontWeight: 600, letterSpacing: "1px", color: "#6B7280", textTransform: "uppercase", marginBottom: 6 },
+  input: { width: "100%", background: "#F0F4FF", border: "1.5px solid #DBEAFE", borderRadius: 8, padding: "10px 14px", fontSize: 14, color: "#1E3A8A", outline: "none", fontFamily: "inherit" },
+  textarea: { width: "100%", background: "#F0F4FF", border: "1.5px solid #DBEAFE", borderRadius: 8, padding: "10px 14px", fontSize: 14, color: "#1E3A8A", outline: "none", fontFamily: "inherit", resize: "vertical", lineHeight: 1.6 },
+  avatarGrid: { display: "flex", flexWrap: "wrap", gap: 8 },
+  saveBtn: { background: "#1E3A8A", color: "#fff", border: "none", borderRadius: 8, padding: "12px 28px", fontSize: 15, fontWeight: 600, cursor: "pointer", marginTop: 8, width: "100%" },
+  empty: { textAlign: "center", padding: "40px 20px" },
+  ideaList: { display: "flex", flexDirection: "column", gap: 10, maxHeight: 500, overflowY: "auto" },
+  ideaRow: { borderRadius: 8, padding: "12px 14px" },
+  ideaRowHeader: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" },
+  ideaTag: { fontSize: 11, fontWeight: 600, borderRadius: 20, padding: "2px 8px" },
+  ideaStage: { fontSize: 11, fontWeight: 600 },
+  ideaLikes: { fontSize: 11, color: "#6B7280", marginLeft: "auto" },
+  ideaText: { fontSize: 13, color: "#374151", lineHeight: 1.5, marginBottom: 4 },
+  ideaMeta: { fontSize: 11, color: "#9CA3AF" },
+  toast: { position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)", background: "#1E3A8A", color: "#FFFFFF", borderRadius: 8, padding: "11px 22px", fontSize: 14, fontWeight: 500, zIndex: 999, boxShadow: "0 8px 24px rgba(0,0,0,0.3)", whiteSpace: "nowrap" },
+};
+
 // ── Admin Panel ──────────────────────────────────────────
 function AdminPanel({ onClose }) {
   const [activeTab, setActiveTab] = useState("ideas");
@@ -180,15 +419,11 @@ function AdminPanel({ onClose }) {
 
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
+  useEffect(() => { fetchAll(); }, []);
 
   const fetchAll = async () => {
-    const { data: ideasData } = await supabase
-      .from("ideas").select("*").order("created_at", { ascending: false });
-    const { data: usersData } = await supabase
-      .from("profiles").select("*").order("created_at", { ascending: false });
+    const { data: ideasData } = await supabase.from("ideas").select("*").order("created_at", { ascending: false });
+    const { data: usersData } = await supabase.from("profiles").select("*").order("created_at", { ascending: false });
     setIdeas(ideasData || []);
     setUsers(usersData || []);
     setStats({
@@ -239,8 +474,6 @@ function AdminPanel({ onClose }) {
         button { font-family: 'DM Sans', sans-serif; }
         .admin-row:hover { background: rgba(30,58,138,0.04) !important; }
       `}</style>
-
-      {/* Header */}
       <div style={p.header}>
         <div style={p.headerLeft}>
           <span style={{ fontSize: 24 }}>👑</span>
@@ -251,8 +484,6 @@ function AdminPanel({ onClose }) {
         </div>
         <button style={p.closeBtn} onClick={onClose}>← Back to Board</button>
       </div>
-
-      {/* Stats Bar */}
       <div style={p.statsBar}>
         {[
           { label: "Total Ideas", value: stats.totalIdeas, icon: "💡" },
@@ -269,8 +500,6 @@ function AdminPanel({ onClose }) {
           </div>
         ))}
       </div>
-
-      {/* Tabs */}
       <div style={p.tabs}>
         {["ideas", "users"].map(tab => (
           <button key={tab} style={{ ...p.tab, ...(activeTab === tab ? p.tabActive : {}) }}
@@ -279,8 +508,6 @@ function AdminPanel({ onClose }) {
           </button>
         ))}
       </div>
-
-      {/* Ideas Tab */}
       {activeTab === "ideas" && (
         <div style={p.body}>
           {ideas.map(idea => (
@@ -305,24 +532,16 @@ function AdminPanel({ onClose }) {
               </div>
               <div style={p.rowActions}>
                 <button style={{ ...p.actionBtn, background: idea.is_pinned ? "#DCFCE7" : "#F0F4FF", color: idea.is_pinned ? "#166534" : "#1E3A8A" }}
-                  onClick={() => togglePin(idea)}>
-                  {idea.is_pinned ? "Unpin" : "📌 Pin"}
-                </button>
+                  onClick={() => togglePin(idea)}>{idea.is_pinned ? "Unpin" : "📌 Pin"}</button>
                 <button style={{ ...p.actionBtn, background: idea.is_hidden ? "#FEF9C3" : "#FEF2F2", color: idea.is_hidden ? "#854D0E" : "#DC2626" }}
-                  onClick={() => toggleHide(idea)}>
-                  {idea.is_hidden ? "👁 Unhide" : "🚫 Hide"}
-                </button>
+                  onClick={() => toggleHide(idea)}>{idea.is_hidden ? "👁 Unhide" : "🚫 Hide"}</button>
                 <button style={{ ...p.actionBtn, background: "#FEF2F2", color: "#DC2626" }}
-                  onClick={() => deleteIdea(idea)}>
-                  🗑 Delete
-                </button>
+                  onClick={() => deleteIdea(idea)}>🗑 Delete</button>
               </div>
             </div>
           ))}
         </div>
       )}
-
-      {/* Users Tab */}
       {activeTab === "users" && (
         <div style={p.body}>
           {users.map(user => (
@@ -333,29 +552,28 @@ function AdminPanel({ onClose }) {
             }}>
               <div style={p.rowMain}>
                 <div style={p.rowHeader}>
-                  <span style={p.rowAuthor}>{user.email || "Unknown"}</span>
+                  <span style={{ fontSize: 20 }}>{user.avatar || "🐅"}</span>
+                  <span style={p.rowAuthor}>{user.full_name || user.email || "Unknown"}</span>
+                  {user.cohort && <span style={p.rowTag}>{user.cohort}</span>}
                   {user.is_admin && <span style={p.adminBadge}>👑 Admin</span>}
                   {user.is_banned && <span style={p.bannedBadge}>🚫 Banned</span>}
                 </div>
+                {user.bio && <p style={p.rowText}>{user.bio}</p>}
                 <div style={p.rowMeta}>
+                  <span>{user.email}</span>
                   <span>Joined {timeAgo(user.created_at)}</span>
                 </div>
               </div>
               <div style={p.rowActions}>
                 <button style={{ ...p.actionBtn, background: user.is_admin ? "#FEF3C7" : "#F0F4FF", color: user.is_admin ? "#B45309" : "#1E3A8A" }}
-                  onClick={() => toggleAdmin(user)}>
-                  {user.is_admin ? "Remove Admin" : "👑 Make Admin"}
-                </button>
+                  onClick={() => toggleAdmin(user)}>{user.is_admin ? "Remove Admin" : "👑 Make Admin"}</button>
                 <button style={{ ...p.actionBtn, background: user.is_banned ? "#F0FDF4" : "#FEF2F2", color: user.is_banned ? "#166534" : "#DC2626" }}
-                  onClick={() => toggleBan(user)}>
-                  {user.is_banned ? "✅ Unban" : "🚫 Ban"}
-                </button>
+                  onClick={() => toggleBan(user)}>{user.is_banned ? "✅ Unban" : "🚫 Ban"}</button>
               </div>
             </div>
           ))}
         </div>
       )}
-
       {toast && <div style={p.toast}>{toast}</div>}
     </div>
   );
@@ -405,6 +623,7 @@ export default function App() {
   const [filterTag, setFilterTag] = useState("All");
   const [filterStage, setFilterStage] = useState("All");
   const [name, setName] = useState("");
+  const [userAvatar, setUserAvatar] = useState("🐅");
   const [cohort, setCohort] = useState("");
   const [text, setText] = useState("");
   const [tag, setTag] = useState(TAGS[0]);
@@ -439,7 +658,7 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
- useEffect(() => {
+  useEffect(() => {
     if (!authReady || !user) return;
     fetchIdeas();
     const channel = supabase
@@ -450,8 +669,13 @@ export default function App() {
   }, [authReady, user]);
 
   const fetchProfile = async (userId) => {
-    const { data } = await supabase.from("profiles").select("is_admin, is_banned").eq("id", userId).single();
-    if (data) setIsAdmin(data.is_admin || false);
+    const { data } = await supabase.from("profiles").select("*").eq("id", userId).single();
+    if (data) {
+      setIsAdmin(data.is_admin || false);
+      setUserAvatar(data.avatar || "🐅");
+      if (data.full_name) setName(data.full_name);
+      if (data.cohort) setCohort(data.cohort);
+    }
   };
 
   const fetchVotes = async (userId) => {
@@ -476,6 +700,7 @@ export default function App() {
     setName("");
     setIsAdmin(false);
     setVotedIds([]);
+    setUserAvatar("🐅");
   };
 
   const handleSubmit = async () => {
@@ -484,7 +709,7 @@ export default function App() {
       text: text.trim(), tag,
       author_name: name.trim(),
       author_cohort: cohort.trim(),
-      avatar: AVATARS[Math.floor(Math.random() * AVATARS.length)],
+      avatar: userAvatar,
       likes: 0,
       user_id: user?.id || null,
       user_email: user?.email || null,
@@ -495,7 +720,6 @@ export default function App() {
     await fetchIdeas();
     setText("");
     setTag(TAGS[0]);
-    setCohort("");
     setView("board");
     flash("🎉 Your idea is live on the board!");
   };
@@ -525,6 +749,7 @@ export default function App() {
   };
 
   if (view === "admin" && isAdmin) return <AdminPanel onClose={() => setView("board")} />;
+  if (view === "profile") return <ProfilePage user={user} onClose={() => { setView("board"); fetchProfile(user.id); }} />;
 
   const filtered = ideas.filter(i => {
     const tagMatch = filterTag === "All" || i.tag === filterTag;
@@ -598,13 +823,11 @@ export default function App() {
               <span style={s.liveDot} />
               <span style={{ color: "#fff", fontSize: 12, fontWeight: 600 }}>{ideas.length} ideas</span>
             </div>
-            <div style={s.userPill}>
-              {isAdmin ? "👑" : "🐅"} {user?.user_metadata?.full_name || user?.email?.split("@")[0]}
-            </div>
+            <button style={s.userPill} onClick={() => setView("profile")}>
+              {isAdmin ? "👑" : userAvatar} {user?.user_metadata?.full_name || user?.email?.split("@")[0]}
+            </button>
             {isAdmin && (
-              <button style={s.adminBtn} onClick={() => setView("admin")}>
-                👑 Admin
-              </button>
+              <button style={s.adminBtn} onClick={() => setView("admin")}>👑 Admin</button>
             )}
             <button style={s.signOutBtn} onClick={handleSignOut}>Sign Out</button>
             <button className="post-btn"
@@ -639,8 +862,6 @@ export default function App() {
 
       {/* Body */}
       <div className="body" style={s.body}>
-
-        {/* Submit Form */}
         {view === "submit" && (
           <div className="form-card" style={s.formCard}>
             <h2 style={s.formTitle}>What's on your mind?</h2>
@@ -685,7 +906,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Board */}
         {view === "board" && (
           <>
             <div className="filter-bar">
@@ -695,7 +915,6 @@ export default function App() {
                   onClick={() => setFilterTag(t)}>{t}</button>
               ))}
             </div>
-
             {loading ? (
               <div style={s.empty}>
                 <div style={{ fontSize: 48, marginBottom: 12 }}>⏳</div>
@@ -724,11 +943,7 @@ export default function App() {
                         borderTop: `4px solid ${idea.is_pinned ? "#22C55E" : style.border}`,
                         animationDelay: `${Math.min(i * 0.05, 0.3)}s`,
                       }}>
-
-                      {idea.is_pinned && (
-                        <div style={s.pinnedBanner}>📌 Pinned by Admin</div>
-                      )}
-
+                      {idea.is_pinned && <div style={s.pinnedBanner}>📌 Pinned by Admin</div>}
                       {style.badge && (
                         <div style={{
                           ...s.stageBadgeCard,
@@ -737,7 +952,6 @@ export default function App() {
                           border: `1px solid ${style.border}`,
                         }}>{style.badge}</div>
                       )}
-
                       <div style={s.cardHeader}>
                         <div style={s.avatar}>{idea.avatar || "🐅"}</div>
                         <div style={{ flex: 1 }}>
@@ -747,21 +961,13 @@ export default function App() {
                           </div>
                           {idea.author_cohort && <div style={s.authorCohort}>{idea.author_cohort}</div>}
                         </div>
-                        {canDelete && (
-                          <button style={s.deleteX} onClick={() => handleDelete(idea)}>✕</button>
-                        )}
+                        {canDelete && <button style={s.deleteX} onClick={() => handleDelete(idea)}>✕</button>}
                       </div>
-
-                      <span style={{ ...s.cardTag, color: style.tag, background: `${style.border}22` }}>
-                        {idea.tag}
-                      </span>
-
+                      <span style={{ ...s.cardTag, color: style.tag, background: `${style.border}22` }}>{idea.tag}</span>
                       <p style={s.cardText}>{idea.text}</p>
-
                       <div style={s.progressBar}>
                         <div style={{ ...s.progressFill, width: `${getProgressPct(idea.likes || 0)}%`, background: style.progressColor }} />
                       </div>
-
                       <div style={s.cardFooter}>
                         <span style={s.timeAgo}>{timeAgo(idea.created_at)}</span>
                         <HeartRow
@@ -798,7 +1004,7 @@ const s = {
   liveDot: { width: 7, height: 7, borderRadius: "50%", background: "#4ADE80", display: "inline-block", animation: "pulse 1.5s ease-in-out infinite", boxShadow: "0 0 6px #4ADE80", flexShrink: 0 },
   winPill: { background: "rgba(245,158,11,0.2)", border: "1px solid rgba(245,158,11,0.4)", borderRadius: 20, padding: "5px 12px", fontSize: 12, color: "#FCD34D", fontWeight: 600 },
   colabPill: { background: "rgba(124,58,237,0.2)", border: "1px solid rgba(124,58,237,0.4)", borderRadius: 20, padding: "5px 12px", fontSize: 12, color: "#C4B5FD", fontWeight: 600 },
-  userPill: { background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 20, padding: "5px 12px", fontSize: 12, color: "#fff", fontWeight: 600 },
+  userPill: { background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 20, padding: "5px 12px", fontSize: 12, color: "#fff", fontWeight: 600, cursor: "pointer" },
   adminBtn: { background: "#F59E0B", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" },
   postBtn: { background: "#FFFFFF", color: "#1E3A8A", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 14, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" },
   cancelBtn: { background: "transparent", color: "#BFDBFE", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 8, padding: "10px 20px", fontSize: 14, cursor: "pointer", whiteSpace: "nowrap" },
