@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -79,7 +78,137 @@ function HeartRow({ likes, ideaId, likedIds, onLike, heartColor, stage }) {
   );
 }
 
+// ── Auth Screen ──────────────────────────────────────────
+function AuthScreen({ onAuth }) {
+  const [mode, setMode] = useState("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async () => {
+    setError("");
+    setLoading(true);
+    if (mode === "signup") {
+      const { error } = await supabase.auth.signUp({
+        email, password,
+        options: { data: { full_name: name } }
+      });
+      if (error) { setError(error.message); setLoading(false); return; }
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) { setError(error.message); setLoading(false); return; }
+    }
+    setLoading(false);
+    onAuth();
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) { setError("Enter your email first"); return; }
+    await supabase.auth.resetPasswordForEmail(email);
+    setError("Password reset email sent!");
+  };
+
+  return (
+    <div style={a.root}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;600&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+        button { font-family: 'DM Sans', sans-serif; }
+      `}</style>
+
+      <div style={a.card}>
+        {/* Logo */}
+        <div style={a.logo}>🐅</div>
+        <h1 style={a.title}>THEE Alumni Network</h1>
+        <p style={a.sub}>
+          {mode === "signin" ? "Welcome back! Sign in to continue." : "Join the network — create your account."}
+        </p>
+
+        {/* Toggle */}
+        <div style={a.toggle}>
+          <button
+            style={{ ...a.toggleBtn, ...(mode === "signin" ? a.toggleActive : {}) }}
+            onClick={() => { setMode("signin"); setError(""); }}>
+            Sign In
+          </button>
+          <button
+            style={{ ...a.toggleBtn, ...(mode === "signup" ? a.toggleActive : {}) }}
+            onClick={() => { setMode("signup"); setError(""); }}>
+            Sign Up
+          </button>
+        </div>
+
+        {/* Form */}
+        {mode === "signup" && (
+          <div style={a.formGroup}>
+            <label style={a.label}>Your Name *</label>
+            <input style={a.input} placeholder="e.g. Jordan Rivera"
+              value={name} onChange={e => setName(e.target.value)} />
+          </div>
+        )}
+
+        <div style={a.formGroup}>
+          <label style={a.label}>Email *</label>
+          <input style={a.input} type="email" placeholder="your@email.com"
+            value={email} onChange={e => setEmail(e.target.value)} />
+        </div>
+
+        <div style={a.formGroup}>
+          <label style={a.label}>Password *</label>
+          <input style={a.input} type="password" placeholder="••••••••"
+            value={password} onChange={e => setPassword(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleSubmit()} />
+        </div>
+
+        {error && (
+          <div style={{
+            ...a.error,
+            background: error.includes("sent") ? "#F0FDF4" : "#FEF2F2",
+            color: error.includes("sent") ? "#166534" : "#DC2626",
+            border: `1px solid ${error.includes("sent") ? "#BBF7D0" : "#FECACA"}`,
+          }}>
+            {error}
+          </div>
+        )}
+
+        <button style={a.submitBtn} onClick={handleSubmit} disabled={loading}>
+          {loading ? "Please wait..." : mode === "signin" ? "Sign In →" : "Create Account →"}
+        </button>
+
+        {mode === "signin" && (
+          <button style={a.forgotBtn} onClick={handleForgotPassword}>
+            Forgot password?
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const a = {
+  root: { minHeight: "100vh", width: "100vw", background: "#F0F4FF", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', sans-serif", padding: 20 },
+  card: { background: "#fff", borderRadius: 16, padding: 40, boxShadow: "0 4px 32px rgba(0,0,0,0.1)", width: "100%", maxWidth: 420, border: "1px solid #DBEAFE", animation: "fadeUp 0.3s ease" },
+  logo: { fontSize: 48, textAlign: "center", marginBottom: 12 },
+  title: { fontFamily: "'Playfair Display', serif", fontSize: 24, fontWeight: 900, color: "#1E3A8A", textAlign: "center", marginBottom: 6 },
+  sub: { fontSize: 13, color: "#6B7280", textAlign: "center", marginBottom: 24 },
+  toggle: { display: "flex", background: "#F0F4FF", borderRadius: 8, padding: 4, marginBottom: 24, gap: 4 },
+  toggleBtn: { flex: 1, background: "transparent", border: "none", borderRadius: 6, padding: "8px 0", fontSize: 14, color: "#6B7280", cursor: "pointer", fontWeight: 500 },
+  toggleActive: { background: "#1E3A8A", color: "#fff" },
+  formGroup: { marginBottom: 16 },
+  label: { display: "block", fontSize: 11, fontWeight: 600, letterSpacing: "1px", color: "#6B7280", textTransform: "uppercase", marginBottom: 6 },
+  input: { width: "100%", background: "#F0F4FF", border: "1.5px solid #DBEAFE", borderRadius: 8, padding: "10px 14px", fontSize: 14, color: "#1E3A8A", outline: "none", fontFamily: "inherit" },
+  error: { borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 16, fontWeight: 500 },
+  submitBtn: { width: "100%", background: "#1E3A8A", color: "#fff", border: "none", borderRadius: 8, padding: "12px 28px", fontSize: 15, fontWeight: 600, cursor: "pointer", marginBottom: 12 },
+  forgotBtn: { width: "100%", background: "transparent", border: "none", color: "#93C5FD", fontSize: 13, cursor: "pointer", textAlign: "center" },
+};
+
+// ── Main App ─────────────────────────────────────────────
 export default function App() {
+  const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
   const [ideas, setIdeas] = useState([]);
   const [view, setView] = useState("board");
   const [filterTag, setFilterTag] = useState("All");
@@ -96,21 +225,43 @@ export default function App() {
 
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
 
-  // Load ideas on mount
+  // Check auth state on load
   useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        const userName = session.user.user_metadata?.full_name || session.user.email;
+        setName(userName);
+      }
+      setAuthReady(true);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        const userName = session.user.user_metadata?.full_name || session.user.email;
+        setName(userName);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Load ideas and subscribe to real-time
+  useEffect(() => {
+    if (!authReady) return;
     fetchIdeas();
-    
-    // Real-time subscription
+
     const channel = supabase
       .channel("ideas-channel")
-      .on("postgres_changes", 
+      .on("postgres_changes",
         { event: "*", schema: "public", table: "ideas" },
         () => { fetchIdeas(); }
       )
       .subscribe();
 
     return () => supabase.removeChannel(channel);
-  }, []);
+  }, [authReady]);
 
   const fetchIdeas = async () => {
     const { data, error } = await supabase
@@ -119,6 +270,12 @@ export default function App() {
       .order("created_at", { ascending: false });
     if (!error) setIdeas(data || []);
     setLoading(false);
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setName("");
   };
 
   const handleSubmit = async () => {
@@ -133,12 +290,13 @@ export default function App() {
       author_cohort: cohort.trim(),
       avatar: AVATARS[Math.floor(Math.random() * AVATARS.length)],
       likes: 0,
+      user_id: user?.id || null,
+      user_email: user?.email || null,
     });
     if (error) { flash("❌ Error posting idea"); return; }
     await fetchIdeas();
     setText("");
     setTag(TAGS[0]);
-    setName("");
     setCohort("");
     setView("board");
     flash("🎉 Your idea is live on the board!");
@@ -168,7 +326,12 @@ export default function App() {
   };
 
   const handleDelete = async (idea) => {
+    if (idea.user_id && idea.user_id !== user?.id) {
+      flash("⚠️ You can only delete your own ideas!");
+      return;
+    }
     await supabase.from("ideas").delete().eq("id", idea.id);
+    await fetchIdeas();
     flash("🗑 Removed");
   };
 
@@ -180,6 +343,15 @@ export default function App() {
 
   const winCount = ideas.filter(i => getStage(i.likes || 0) === "win").length;
   const colabCount = ideas.filter(i => getStage(i.likes || 0) === "collaborate").length;
+
+  // Show auth screen if not logged in
+  if (!authReady) return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F0F4FF" }}>
+      <div style={{ fontSize: 48 }}>🐅</div>
+    </div>
+  );
+
+  if (!user) return <AuthScreen onAuth={() => supabase.auth.getSession()} />;
 
   return (
     <div style={s.root}>
@@ -236,6 +408,10 @@ export default function App() {
               <span style={s.liveDot} />
               <span style={{ color: "#fff", fontSize: 12, fontWeight: 600 }}>{ideas.length} ideas</span>
             </div>
+            <div style={s.userPill}>
+              🐅 {user?.user_metadata?.full_name || user?.email?.split("@")[0]}
+            </div>
+            <button style={s.signOutBtn} onClick={handleSignOut}>Sign Out</button>
             <button className="post-btn"
               style={view === "submit" ? s.cancelBtn : s.postBtn}
               onClick={() => setView(view === "submit" ? "board" : "submit")}>
@@ -287,8 +463,8 @@ export default function App() {
             <div className="form-grid">
               <div style={s.formGroup}>
                 <label style={s.label}>Your Name *</label>
-                <input style={s.input} placeholder="e.g. Jordan Rivera"
-                  value={name} onChange={e => setName(e.target.value)} />
+                <input style={{ ...s.input, background: "#E8F0FE" }} 
+                  value={name} readOnly />
               </div>
               <div style={s.formGroup}>
                 <label style={s.label}>Cohort / Year</label>
@@ -349,6 +525,7 @@ export default function App() {
                   const stage = getStage(idea.likes || 0);
                   const style = STAGE_STYLES[stage];
                   const cardClass = stage === "win" ? "card-win" : stage === "collaborate" ? "card-collaborate" : "card";
+                  const isMyIdea = user && idea.user_id === user.id;
                   return (
                     <div key={idea.id} className={cardClass}
                       style={{
@@ -374,12 +551,15 @@ export default function App() {
                         <div style={{ flex: 1 }}>
                           <div style={{ ...s.authorName, color: style.tag }}>
                             {idea.author_name || "Alumni"}
+                            {isMyIdea && <span style={s.myBadge}>you</span>}
                           </div>
                           {idea.author_cohort && (
                             <div style={s.authorCohort}>{idea.author_cohort}</div>
                           )}
                         </div>
-                        <button style={s.deleteX} onClick={() => handleDelete(idea)}>✕</button>
+                        {isMyIdea && (
+                          <button style={s.deleteX} onClick={() => handleDelete(idea)}>✕</button>
+                        )}
                       </div>
 
                       <span style={{ ...s.cardTag, color: style.tag, background: `${style.border}22` }}>
@@ -434,8 +614,10 @@ const s = {
   liveDot: { width: 7, height: 7, borderRadius: "50%", background: "#4ADE80", display: "inline-block", animation: "pulse 1.5s ease-in-out infinite", boxShadow: "0 0 6px #4ADE80", flexShrink: 0 },
   winPill: { background: "rgba(245,158,11,0.2)", border: "1px solid rgba(245,158,11,0.4)", borderRadius: 20, padding: "5px 12px", fontSize: 12, color: "#FCD34D", fontWeight: 600 },
   colabPill: { background: "rgba(124,58,237,0.2)", border: "1px solid rgba(124,58,237,0.4)", borderRadius: 20, padding: "5px 12px", fontSize: 12, color: "#C4B5FD", fontWeight: 600 },
+  userPill: { background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 20, padding: "5px 12px", fontSize: 12, color: "#fff", fontWeight: 600 },
   postBtn: { background: "#FFFFFF", color: "#1E3A8A", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 14, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" },
   cancelBtn: { background: "transparent", color: "#BFDBFE", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 8, padding: "10px 20px", fontSize: 14, cursor: "pointer", whiteSpace: "nowrap" },
+  signOutBtn: { background: "transparent", color: "#93C5FD", border: "1px solid rgba(147,197,253,0.3)", borderRadius: 8, padding: "8px 14px", fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" },
   stageBar: { background: "#1E3A8A", borderTop: "1px solid rgba(255,255,255,0.1)", padding: "0 24px 12px", width: "100%" },
   stageBarInner: { display: "flex", gap: 8, flexWrap: "wrap" },
   stageBtn: { background: "transparent", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 20, padding: "5px 14px", fontSize: 12, color: "#BFDBFE", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 },
@@ -463,7 +645,8 @@ const s = {
   stageBadgeCard: { borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, alignSelf: "flex-start", letterSpacing: "0.3px" },
   cardHeader: { display: "flex", alignItems: "center", gap: 10 },
   avatar: { fontSize: 26, lineHeight: 1, flexShrink: 0 },
-  authorName: { fontWeight: 600, fontSize: 14 },
+  authorName: { fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 6 },
+  myBadge: { background: "#DBEAFE", color: "#1E3A8A", fontSize: 10, borderRadius: 10, padding: "1px 7px", fontWeight: 600 },
   authorCohort: { fontSize: 11, color: "#6B7280" },
   deleteX: { background: "transparent", border: "none", color: "#CBD5E1", cursor: "pointer", fontSize: 12, padding: "2px 4px", flexShrink: 0 },
   cardTag: { display: "inline-block", fontSize: 11, fontWeight: 600, borderRadius: 20, padding: "3px 10px", alignSelf: "flex-start" },
