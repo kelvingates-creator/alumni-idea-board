@@ -28,21 +28,9 @@ function getProgressPct(likes) {
 }
 
 const STAGE_STYLES = {
-  idea: {
-    bg: "#EFF6FF", border: "#3B82F6", tag: "#1D4ED8",
-    label: "💡 Idea", badge: null,
-    heartColor: "#EF4444", progressColor: "#3B82F6",
-  },
-  collaborate: {
-    bg: "#F5F3FF", border: "#7C3AED", tag: "#5B21B6",
-    label: "🤝 Collaborate", badge: "🔥 Gaining Traction",
-    heartColor: "#7C3AED", progressColor: "#7C3AED",
-  },
-  win: {
-    bg: "#FFFBEB", border: "#F59E0B", tag: "#B45309",
-    label: "🎉 Win", badge: "⭐ Community Win",
-    heartColor: "#F59E0B", progressColor: "#F59E0B",
-  },
+  idea: { bg: "#EFF6FF", border: "#3B82F6", tag: "#1D4ED8", label: "💡 Idea", badge: null, heartColor: "#EF4444", progressColor: "#3B82F6" },
+  collaborate: { bg: "#F5F3FF", border: "#7C3AED", tag: "#5B21B6", label: "🤝 Collaborate", badge: "🔥 Gaining Traction", heartColor: "#7C3AED", progressColor: "#7C3AED" },
+  win: { bg: "#FFFBEB", border: "#F59E0B", tag: "#B45309", label: "🎉 Win", badge: "⭐ Community Win", heartColor: "#F59E0B", progressColor: "#F59E0B" },
 };
 
 function timeAgo(ts) {
@@ -121,9 +109,7 @@ function AuthScreen({ onAuth }) {
       <div style={a.card}>
         <div style={a.logo}>🐅</div>
         <h1 style={a.title}>THEE Alumni Network</h1>
-        <p style={a.sub}>
-          {mode === "signin" ? "Welcome back! Sign in to continue." : "Join the network — create your account."}
-        </p>
+        <p style={a.sub}>{mode === "signin" ? "Welcome back! Sign in to continue." : "Join the network — create your account."}</p>
         <div style={a.toggle}>
           <button style={{ ...a.toggleBtn, ...(mode === "signin" ? a.toggleActive : {}) }}
             onClick={() => { setMode("signin"); setError(""); }}>Sign In</button>
@@ -160,9 +146,7 @@ function AuthScreen({ onAuth }) {
           {loading ? "Please wait..." : mode === "signin" ? "Sign In →" : "Create Account →"}
         </button>
         {mode === "signin" && (
-          <button style={a.forgotBtn} onClick={handleForgotPassword}>
-            Forgot password?
-          </button>
+          <button style={a.forgotBtn} onClick={handleForgotPassword}>Forgot password?</button>
         )}
       </div>
     </div>
@@ -186,6 +170,230 @@ const a = {
   forgotBtn: { width: "100%", background: "transparent", border: "none", color: "#93C5FD", fontSize: 13, cursor: "pointer", textAlign: "center" },
 };
 
+// ── Admin Panel ──────────────────────────────────────────
+function AdminPanel({ onClose }) {
+  const [activeTab, setActiveTab] = useState("ideas");
+  const [ideas, setIdeas] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [stats, setStats] = useState({});
+  const [toast, setToast] = useState("");
+
+  const flash = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
+
+  useEffect(() => {
+    fetchAll();
+  }, []);
+
+  const fetchAll = async () => {
+    const { data: ideasData } = await supabase
+      .from("ideas").select("*").order("created_at", { ascending: false });
+    const { data: usersData } = await supabase
+      .from("profiles").select("*").order("created_at", { ascending: false });
+    setIdeas(ideasData || []);
+    setUsers(usersData || []);
+    setStats({
+      totalIdeas: ideasData?.length || 0,
+      totalUsers: usersData?.length || 0,
+      totalVotes: ideasData?.reduce((acc, i) => acc + (i.likes || 0), 0) || 0,
+      pinnedIdeas: ideasData?.filter(i => i.is_pinned).length || 0,
+      hiddenIdeas: ideasData?.filter(i => i.is_hidden).length || 0,
+      wins: ideasData?.filter(i => getStage(i.likes || 0) === "win").length || 0,
+    });
+  };
+
+  const togglePin = async (idea) => {
+    await supabase.from("ideas").update({ is_pinned: !idea.is_pinned }).eq("id", idea.id);
+    flash(idea.is_pinned ? "📌 Unpinned" : "📌 Pinned to top!");
+    fetchAll();
+  };
+
+  const toggleHide = async (idea) => {
+    await supabase.from("ideas").update({ is_hidden: !idea.is_hidden }).eq("id", idea.id);
+    flash(idea.is_hidden ? "👁 Unhidden" : "🚫 Hidden from board");
+    fetchAll();
+  };
+
+  const deleteIdea = async (idea) => {
+    await supabase.from("ideas").delete().eq("id", idea.id);
+    flash("🗑 Deleted");
+    fetchAll();
+  };
+
+  const toggleBan = async (user) => {
+    await supabase.from("profiles").update({ is_banned: !user.is_banned }).eq("id", user.id);
+    flash(user.is_banned ? "✅ User unbanned" : "🚫 User banned");
+    fetchAll();
+  };
+
+  const toggleAdmin = async (user) => {
+    await supabase.from("profiles").update({ is_admin: !user.is_admin }).eq("id", user.id);
+    flash(user.is_admin ? "👤 Admin removed" : "👑 Admin granted");
+    fetchAll();
+  };
+
+  return (
+    <div style={p.root}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;600&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        button { font-family: 'DM Sans', sans-serif; }
+        .admin-row:hover { background: rgba(30,58,138,0.04) !important; }
+      `}</style>
+
+      {/* Header */}
+      <div style={p.header}>
+        <div style={p.headerLeft}>
+          <span style={{ fontSize: 24 }}>👑</span>
+          <div>
+            <h1 style={p.title}>Admin Panel</h1>
+            <p style={p.sub}>THEE Alumni Network</p>
+          </div>
+        </div>
+        <button style={p.closeBtn} onClick={onClose}>← Back to Board</button>
+      </div>
+
+      {/* Stats Bar */}
+      <div style={p.statsBar}>
+        {[
+          { label: "Total Ideas", value: stats.totalIdeas, icon: "💡" },
+          { label: "Total Users", value: stats.totalUsers, icon: "👥" },
+          { label: "Total Votes", value: stats.totalVotes, icon: "❤️" },
+          { label: "Pinned", value: stats.pinnedIdeas, icon: "📌" },
+          { label: "Hidden", value: stats.hiddenIdeas, icon: "🚫" },
+          { label: "Wins", value: stats.wins, icon: "🎉" },
+        ].map(stat => (
+          <div key={stat.label} style={p.statCard}>
+            <div style={p.statIcon}>{stat.icon}</div>
+            <div style={p.statValue}>{stat.value}</div>
+            <div style={p.statLabel}>{stat.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabs */}
+      <div style={p.tabs}>
+        {["ideas", "users"].map(tab => (
+          <button key={tab} style={{ ...p.tab, ...(activeTab === tab ? p.tabActive : {}) }}
+            onClick={() => setActiveTab(tab)}>
+            {tab === "ideas" ? `💡 Ideas (${ideas.length})` : `👥 Users (${users.length})`}
+          </button>
+        ))}
+      </div>
+
+      {/* Ideas Tab */}
+      {activeTab === "ideas" && (
+        <div style={p.body}>
+          {ideas.map(idea => (
+            <div key={idea.id} className="admin-row" style={{
+              ...p.row,
+              background: idea.is_hidden ? "#FEF2F2" : idea.is_pinned ? "#F0FDF4" : "#fff",
+              borderLeft: `4px solid ${idea.is_hidden ? "#EF4444" : idea.is_pinned ? "#22C55E" : "#DBEAFE"}`,
+            }}>
+              <div style={p.rowMain}>
+                <div style={p.rowHeader}>
+                  <span style={p.rowAuthor}>{idea.author_name || "Unknown"}</span>
+                  <span style={p.rowTag}>{idea.tag}</span>
+                  <span style={p.rowStage}>{getStage(idea.likes || 0)}</span>
+                  {idea.is_pinned && <span style={p.pinnedBadge}>📌 Pinned</span>}
+                  {idea.is_hidden && <span style={p.hiddenBadge}>🚫 Hidden</span>}
+                </div>
+                <p style={p.rowText}>{idea.text}</p>
+                <div style={p.rowMeta}>
+                  <span>❤️ {idea.likes || 0} votes</span>
+                  <span>{timeAgo(idea.created_at)}</span>
+                </div>
+              </div>
+              <div style={p.rowActions}>
+                <button style={{ ...p.actionBtn, background: idea.is_pinned ? "#DCFCE7" : "#F0F4FF", color: idea.is_pinned ? "#166534" : "#1E3A8A" }}
+                  onClick={() => togglePin(idea)}>
+                  {idea.is_pinned ? "Unpin" : "📌 Pin"}
+                </button>
+                <button style={{ ...p.actionBtn, background: idea.is_hidden ? "#FEF9C3" : "#FEF2F2", color: idea.is_hidden ? "#854D0E" : "#DC2626" }}
+                  onClick={() => toggleHide(idea)}>
+                  {idea.is_hidden ? "👁 Unhide" : "🚫 Hide"}
+                </button>
+                <button style={{ ...p.actionBtn, background: "#FEF2F2", color: "#DC2626" }}
+                  onClick={() => deleteIdea(idea)}>
+                  🗑 Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Users Tab */}
+      {activeTab === "users" && (
+        <div style={p.body}>
+          {users.map(user => (
+            <div key={user.id} className="admin-row" style={{
+              ...p.row,
+              background: user.is_banned ? "#FEF2F2" : "#fff",
+              borderLeft: `4px solid ${user.is_banned ? "#EF4444" : user.is_admin ? "#F59E0B" : "#DBEAFE"}`,
+            }}>
+              <div style={p.rowMain}>
+                <div style={p.rowHeader}>
+                  <span style={p.rowAuthor}>{user.email || "Unknown"}</span>
+                  {user.is_admin && <span style={p.adminBadge}>👑 Admin</span>}
+                  {user.is_banned && <span style={p.bannedBadge}>🚫 Banned</span>}
+                </div>
+                <div style={p.rowMeta}>
+                  <span>Joined {timeAgo(user.created_at)}</span>
+                </div>
+              </div>
+              <div style={p.rowActions}>
+                <button style={{ ...p.actionBtn, background: user.is_admin ? "#FEF3C7" : "#F0F4FF", color: user.is_admin ? "#B45309" : "#1E3A8A" }}
+                  onClick={() => toggleAdmin(user)}>
+                  {user.is_admin ? "Remove Admin" : "👑 Make Admin"}
+                </button>
+                <button style={{ ...p.actionBtn, background: user.is_banned ? "#F0FDF4" : "#FEF2F2", color: user.is_banned ? "#166534" : "#DC2626" }}
+                  onClick={() => toggleBan(user)}>
+                  {user.is_banned ? "✅ Unban" : "🚫 Ban"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {toast && <div style={p.toast}>{toast}</div>}
+    </div>
+  );
+}
+
+const p = {
+  root: { minHeight: "100vh", width: "100vw", maxWidth: "100vw", background: "#F0F4FF", fontFamily: "'DM Sans', sans-serif" },
+  header: { background: "#1C1208", padding: "20px 32px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 },
+  headerLeft: { display: "flex", alignItems: "center", gap: 14 },
+  title: { fontFamily: "'Playfair Display', serif", fontSize: 26, fontWeight: 900, color: "#FFF8E7" },
+  sub: { fontSize: 12, color: "#8a7560" },
+  closeBtn: { background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 8, padding: "8px 18px", color: "#fff", fontSize: 13, cursor: "pointer" },
+  statsBar: { display: "flex", gap: 16, padding: "24px 32px", flexWrap: "wrap", background: "#fff", borderBottom: "1px solid #DBEAFE" },
+  statCard: { flex: 1, minWidth: 100, background: "#F0F4FF", borderRadius: 12, padding: "16px 20px", textAlign: "center", border: "1px solid #DBEAFE" },
+  statIcon: { fontSize: 24, marginBottom: 6 },
+  statValue: { fontSize: 28, fontWeight: 700, color: "#1E3A8A", lineHeight: 1 },
+  statLabel: { fontSize: 11, color: "#6B7280", marginTop: 4, textTransform: "uppercase", letterSpacing: "0.5px" },
+  tabs: { display: "flex", gap: 8, padding: "16px 32px", background: "#fff", borderBottom: "1px solid #DBEAFE" },
+  tab: { background: "transparent", border: "1.5px solid #DBEAFE", borderRadius: 20, padding: "6px 20px", fontSize: 13, cursor: "pointer", color: "#1E3A8A", fontWeight: 500 },
+  tabActive: { background: "#1E3A8A", borderColor: "#1E3A8A", color: "#fff" },
+  body: { padding: "24px 32px", display: "flex", flexDirection: "column", gap: 12 },
+  row: { borderRadius: 12, padding: "16px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", transition: "background 0.15s" },
+  rowMain: { flex: 1, minWidth: 200 },
+  rowHeader: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 },
+  rowAuthor: { fontWeight: 600, fontSize: 14, color: "#1E3A8A" },
+  rowTag: { background: "#EFF6FF", color: "#1D4ED8", fontSize: 11, borderRadius: 20, padding: "2px 8px", fontWeight: 600 },
+  rowStage: { background: "#F5F3FF", color: "#5B21B6", fontSize: 11, borderRadius: 20, padding: "2px 8px", fontWeight: 600 },
+  pinnedBadge: { background: "#DCFCE7", color: "#166534", fontSize: 11, borderRadius: 20, padding: "2px 8px", fontWeight: 600 },
+  hiddenBadge: { background: "#FEE2E2", color: "#DC2626", fontSize: 11, borderRadius: 20, padding: "2px 8px", fontWeight: 600 },
+  adminBadge: { background: "#FEF3C7", color: "#B45309", fontSize: 11, borderRadius: 20, padding: "2px 8px", fontWeight: 600 },
+  bannedBadge: { background: "#FEE2E2", color: "#DC2626", fontSize: 11, borderRadius: 20, padding: "2px 8px", fontWeight: 600 },
+  rowText: { fontSize: 13, color: "#374151", lineHeight: 1.5, marginBottom: 6 },
+  rowMeta: { display: "flex", gap: 16, fontSize: 11, color: "#9CA3AF" },
+  rowActions: { display: "flex", gap: 8, flexWrap: "wrap" },
+  actionBtn: { border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" },
+  toast: { position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)", background: "#1C1208", color: "#FFF8E7", borderRadius: 8, padding: "11px 22px", fontSize: 14, fontWeight: 500, zIndex: 999, boxShadow: "0 8px 24px rgba(0,0,0,0.3)", whiteSpace: "nowrap" },
+};
+
 // ── Main App ─────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState(null);
@@ -205,13 +413,11 @@ export default function App() {
 
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
 
-  // Check auth state on load
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        const userName = session.user.user_metadata?.full_name || session.user.email;
-        setName(userName);
+        setName(session.user.user_metadata?.full_name || session.user.email);
         fetchProfile(session.user.id);
         fetchVotes(session.user.id);
       }
@@ -221,8 +427,7 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        const userName = session.user.user_metadata?.full_name || session.user.email;
-        setName(userName);
+        setName(session.user.user_metadata?.full_name || session.user.email);
         fetchProfile(session.user.id);
         fetchVotes(session.user.id);
       } else {
@@ -234,36 +439,23 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Load ideas and subscribe to real-time
-  useEffect(() => {
-    if (!authReady) return;
+ useEffect(() => {
+    if (!authReady || !user) return;
     fetchIdeas();
-
     const channel = supabase
       .channel("ideas-channel")
-      .on("postgres_changes",
-        { event: "*", schema: "public", table: "ideas" },
-        () => { fetchIdeas(); }
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "ideas" }, () => fetchIdeas())
       .subscribe();
-
     return () => supabase.removeChannel(channel);
-  }, [authReady]);
+  }, [authReady, user]);
 
   const fetchProfile = async (userId) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("is_admin")
-      .eq("id", userId)
-      .single();
+    const { data } = await supabase.from("profiles").select("is_admin, is_banned").eq("id", userId).single();
     if (data) setIsAdmin(data.is_admin || false);
   };
 
   const fetchVotes = async (userId) => {
-    const { data } = await supabase
-      .from("votes")
-      .select("idea_id")
-      .eq("user_id", userId);
+    const { data } = await supabase.from("votes").select("idea_id").eq("user_id", userId);
     if (data) setVotedIds(data.map(v => v.idea_id));
   };
 
@@ -271,6 +463,8 @@ export default function App() {
     const { data, error } = await supabase
       .from("ideas")
       .select("*")
+      .eq("is_hidden", false)
+      .order("is_pinned", { ascending: false })
       .order("created_at", { ascending: false });
     if (!error) setIdeas(data || []);
     setLoading(false);
@@ -285,19 +479,17 @@ export default function App() {
   };
 
   const handleSubmit = async () => {
-    if (!text.trim() || !name.trim()) {
-      flash("⚠️ Name and idea are required");
-      return;
-    }
+    if (!text.trim() || !name.trim()) { flash("⚠️ Name and idea are required"); return; }
     const { error } = await supabase.from("ideas").insert({
-      text: text.trim(),
-      tag,
+      text: text.trim(), tag,
       author_name: name.trim(),
       author_cohort: cohort.trim(),
       avatar: AVATARS[Math.floor(Math.random() * AVATARS.length)],
       likes: 0,
       user_id: user?.id || null,
       user_email: user?.email || null,
+      is_pinned: false,
+      is_hidden: false,
     });
     if (error) { flash("❌ Error posting idea"); return; }
     await fetchIdeas();
@@ -309,32 +501,16 @@ export default function App() {
   };
 
   const handleLike = async (idea) => {
-    if (votedIds.includes(idea.id)) {
-      flash("⚠️ You already voted on this idea!");
-      return;
-    }
+    if (votedIds.includes(idea.id)) { flash("⚠️ You already voted on this idea!"); return; }
     const newLikes = (idea.likes || 0) + 1;
     const oldStage = getStage(idea.likes || 0);
     const newStage = getStage(newLikes);
-
-    // Insert vote record into votes table
-    const { error: voteError } = await supabase
-      .from("votes")
-      .insert({ user_id: user.id, idea_id: idea.id });
-
+    const { error: voteError } = await supabase.from("votes").insert({ user_id: user.id, idea_id: idea.id });
     if (voteError) { flash("❌ Error recording vote"); return; }
-
-    // Update likes count
-    const { error: likeError } = await supabase
-      .from("ideas")
-      .update({ likes: newLikes })
-      .eq("id", idea.id);
-
+    const { error: likeError } = await supabase.from("ideas").update({ likes: newLikes }).eq("id", idea.id);
     if (likeError) { flash("❌ Error updating vote"); return; }
-
     setVotedIds([...votedIds, idea.id]);
     await fetchIdeas();
-
     if (newStage !== oldStage) {
       if (newStage === "collaborate") flash("🔥 This idea is gaining traction!");
       if (newStage === "win") flash("⭐ This idea just became a Community Win!");
@@ -342,15 +518,13 @@ export default function App() {
   };
 
   const handleDelete = async (idea) => {
-    const isMyIdea = idea.user_id === user?.id;
-    if (!isMyIdea && !isAdmin) {
-      flash("⚠️ You can only delete your own ideas!");
-      return;
-    }
+    if (idea.user_id !== user?.id && !isAdmin) { flash("⚠️ You can only delete your own ideas!"); return; }
     await supabase.from("ideas").delete().eq("id", idea.id);
     await fetchIdeas();
     flash("🗑 Removed");
   };
+
+  if (view === "admin" && isAdmin) return <AdminPanel onClose={() => setView("board")} />;
 
   const filtered = ideas.filter(i => {
     const tagMatch = filterTag === "All" || i.tag === filterTag;
@@ -427,6 +601,11 @@ export default function App() {
             <div style={s.userPill}>
               {isAdmin ? "👑" : "🐅"} {user?.user_metadata?.full_name || user?.email?.split("@")[0]}
             </div>
+            {isAdmin && (
+              <button style={s.adminBtn} onClick={() => setView("admin")}>
+                👑 Admin
+              </button>
+            )}
             <button style={s.signOutBtn} onClick={handleSignOut}>Sign Out</button>
             <button className="post-btn"
               style={view === "submit" ? s.cancelBtn : s.postBtn}
@@ -479,8 +658,7 @@ export default function App() {
             <div className="form-grid">
               <div style={s.formGroup}>
                 <label style={s.label}>Your Name *</label>
-                <input style={{ ...s.input, background: "#E8F0FE" }}
-                  value={name} readOnly />
+                <input style={{ ...s.input, background: "#E8F0FE" }} value={name} readOnly />
               </div>
               <div style={s.formGroup}>
                 <label style={s.label}>Cohort / Year</label>
@@ -492,10 +670,8 @@ export default function App() {
               <label style={s.label}>Tag</label>
               <div className="tag-row">
                 {TAGS.map(t => (
-                  <button key={t}
-                    style={{ ...s.tagChip, ...(tag === t ? s.tagChipActive : {}) }}
-                    onClick={() => setTag(t)}>{t}
-                  </button>
+                  <button key={t} style={{ ...s.tagChip, ...(tag === t ? s.tagChipActive : {}) }}
+                    onClick={() => setTag(t)}>{t}</button>
                 ))}
               </div>
             </div>
@@ -516,8 +692,7 @@ export default function App() {
               {["All", ...TAGS].map(t => (
                 <button key={t}
                   style={{ ...s.filterBtn, ...(filterTag === t ? s.filterActive : {}) }}
-                  onClick={() => setFilterTag(t)}>{t}
-                </button>
+                  onClick={() => setFilterTag(t)}>{t}</button>
               ))}
             </div>
 
@@ -531,9 +706,7 @@ export default function App() {
                 <div style={{ fontSize: 48, marginBottom: 12 }}>💭</div>
                 <div style={s.emptyTitle}>No ideas here yet</div>
                 <div style={s.emptySub}>Be the first to post something!</div>
-                <button style={s.submitBtn} onClick={() => setView("submit")}>
-                  Share the First Idea →
-                </button>
+                <button style={s.submitBtn} onClick={() => setView("submit")}>Share the First Idea →</button>
               </div>
             ) : (
               <div className="ideas-grid">
@@ -548,9 +721,13 @@ export default function App() {
                       style={{
                         ...s.card,
                         background: style.bg,
-                        borderTop: `4px solid ${style.border}`,
+                        borderTop: `4px solid ${idea.is_pinned ? "#22C55E" : style.border}`,
                         animationDelay: `${Math.min(i * 0.05, 0.3)}s`,
                       }}>
+
+                      {idea.is_pinned && (
+                        <div style={s.pinnedBanner}>📌 Pinned by Admin</div>
+                      )}
 
                       {style.badge && (
                         <div style={{
@@ -558,9 +735,7 @@ export default function App() {
                           background: stage === "win" ? "#FEF3C7" : "#EDE9FE",
                           color: stage === "win" ? "#B45309" : "#5B21B6",
                           border: `1px solid ${style.border}`,
-                        }}>
-                          {style.badge}
-                        </div>
+                        }}>{style.badge}</div>
                       )}
 
                       <div style={s.cardHeader}>
@@ -569,11 +744,8 @@ export default function App() {
                           <div style={{ ...s.authorName, color: style.tag }}>
                             {idea.author_name || "Alumni"}
                             {isMyIdea && <span style={s.myBadge}>you</span>}
-                            {isAdmin && !isMyIdea && <span style={s.adminBadge}>admin</span>}
                           </div>
-                          {idea.author_cohort && (
-                            <div style={s.authorCohort}>{idea.author_cohort}</div>
-                          )}
+                          {idea.author_cohort && <div style={s.authorCohort}>{idea.author_cohort}</div>}
                         </div>
                         {canDelete && (
                           <button style={s.deleteX} onClick={() => handleDelete(idea)}>✕</button>
@@ -587,11 +759,7 @@ export default function App() {
                       <p style={s.cardText}>{idea.text}</p>
 
                       <div style={s.progressBar}>
-                        <div style={{
-                          ...s.progressFill,
-                          width: `${getProgressPct(idea.likes || 0)}%`,
-                          background: style.progressColor,
-                        }} />
+                        <div style={{ ...s.progressFill, width: `${getProgressPct(idea.likes || 0)}%`, background: style.progressColor }} />
                       </div>
 
                       <div style={s.cardFooter}>
@@ -615,9 +783,7 @@ export default function App() {
       </div>
 
       {toast && <div style={s.toast}>{toast}</div>}
-      <div style={s.footerNote}>
-        ⚡ THEE Alumni Network · Ideas → Collaborate → Win
-      </div>
+      <div style={s.footerNote}>⚡ THEE Alumni Network · Ideas → Collaborate → Win</div>
     </div>
   );
 }
@@ -633,6 +799,7 @@ const s = {
   winPill: { background: "rgba(245,158,11,0.2)", border: "1px solid rgba(245,158,11,0.4)", borderRadius: 20, padding: "5px 12px", fontSize: 12, color: "#FCD34D", fontWeight: 600 },
   colabPill: { background: "rgba(124,58,237,0.2)", border: "1px solid rgba(124,58,237,0.4)", borderRadius: 20, padding: "5px 12px", fontSize: 12, color: "#C4B5FD", fontWeight: 600 },
   userPill: { background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 20, padding: "5px 12px", fontSize: 12, color: "#fff", fontWeight: 600 },
+  adminBtn: { background: "#F59E0B", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" },
   postBtn: { background: "#FFFFFF", color: "#1E3A8A", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 14, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" },
   cancelBtn: { background: "transparent", color: "#BFDBFE", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 8, padding: "10px 20px", fontSize: 14, cursor: "pointer", whiteSpace: "nowrap" },
   signOutBtn: { background: "transparent", color: "#93C5FD", border: "1px solid rgba(147,197,253,0.3)", borderRadius: 8, padding: "8px 14px", fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" },
@@ -660,12 +827,12 @@ const s = {
   filterBtn: { background: "transparent", border: "1.5px solid #DBEAFE", borderRadius: 20, padding: "6px 16px", fontSize: 13, cursor: "pointer", color: "#1E3A8A" },
   filterActive: { background: "#1E3A8A", borderColor: "#1E3A8A", color: "#fff" },
   card: { borderRadius: 12, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.07)", display: "flex", flexDirection: "column", gap: 10 },
+  pinnedBanner: { background: "#DCFCE7", color: "#166534", fontSize: 11, fontWeight: 700, borderRadius: 6, padding: "4px 10px", alignSelf: "flex-start" },
   stageBadgeCard: { borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, alignSelf: "flex-start", letterSpacing: "0.3px" },
   cardHeader: { display: "flex", alignItems: "center", gap: 10 },
   avatar: { fontSize: 26, lineHeight: 1, flexShrink: 0 },
   authorName: { fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 6 },
   myBadge: { background: "#DBEAFE", color: "#1E3A8A", fontSize: 10, borderRadius: 10, padding: "1px 7px", fontWeight: 600 },
-  adminBadge: { background: "#FEF3C7", color: "#B45309", fontSize: 10, borderRadius: 10, padding: "1px 7px", fontWeight: 600 },
   authorCohort: { fontSize: 11, color: "#6B7280" },
   deleteX: { background: "transparent", border: "none", color: "#CBD5E1", cursor: "pointer", fontSize: 12, padding: "2px 4px", flexShrink: 0 },
   cardTag: { display: "inline-block", fontSize: 11, fontWeight: 600, borderRadius: 20, padding: "3px 10px", alignSelf: "flex-start" },
