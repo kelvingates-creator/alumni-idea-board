@@ -163,7 +163,7 @@ function AuthScreen({ onAuth }) {
             }
           });
         }}>
-          <span style={{ fontSize: 18 }}>G</span> Continue with Google
+          <span style={{ fontSize: 18, fontWeight: 800, background: "linear-gradient(to right, #4285F4, #EA4335, #FBBC05, #34A853)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>G</span> Continue with Google
               </button>
         )}
       </div>
