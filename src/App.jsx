@@ -186,6 +186,10 @@ const a = {
   error: { borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 16, fontWeight: 500 },
   submitBtn: { width: "100%", background: "#1E3A8A", color: "#fff", border: "none", borderRadius: 8, padding: "12px 28px", fontSize: 15, fontWeight: 600, cursor: "pointer", marginBottom: 12 },
   forgotBtn: { width: "100%", background: "transparent", border: "none", color: "#93C5FD", fontSize: 13, cursor: "pointer", textAlign: "center" },
+  divider: { display: "flex", alignItems: "center", gap: 10, margin: "16px 0" },
+  dividerLine: { flex: 1, height: 1, background: "#DBEAFE" },
+  dividerText: { fontSize: 12, color: "#9CA3AF", whiteSpace: "nowrap" },
+  googleBtn: { width: "100%", background: "#fff", border: "1.5px solid #DBEAFE", borderRadius: 8, padding: "11px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, color: "#1E3A8A", fontFamily: "inherit", textAlign: "center" },
 };
 
 // ── Profile Page ─────────────────────────────────────────
