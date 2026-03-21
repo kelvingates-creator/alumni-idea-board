@@ -148,6 +148,24 @@ function AuthScreen({ onAuth }) {
         {mode === "signin" && (
           <button style={a.forgotBtn} onClick={handleForgotPassword}>Forgot password?</button>
         )}
+
+        <div style={a.divider}>
+          <span style={a.dividerLine} />
+          <span style={a.dividerText}>or</span>
+          <span style={a.dividerLine} />
+        </div>
+
+        <button style={a.googleBtn} onClick={async () => {
+          await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+              redirectTo: 'https://thee-alumni-board.netlify.app'
+            }
+          });
+        }}>
+          <span style={{ fontSize: 18 }}>G</span> Continue with Google
+              </button>
+        )}
       </div>
     </div>
   );
