@@ -199,10 +199,31 @@ function ProfilePage({ user, onClose }) {
   const [bio, setBio] = useState("");
   const [cohort, setCohort] = useState("");
   const [avatar, setAvatar] = useState("🐅");
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [myIdeas, setMyIdeas] = useState([]);
   const [myVotes, setMyVotes] = useState(0);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
+
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { flash("⚠️ Photo must be under 2MB"); return; }
+    setUploading(true);
+    const fileExt = file.name.split('.').pop();
+    const filePath = `${user.id}/avatar.${fileExt}`;
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, file, { upsert: true });
+    if (uploadError) { flash("❌ Error uploading photo"); setUploading(false); return; }
+    const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+    const publicUrl = `${data.publicUrl}?t=${Date.now()}`;
+    await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', user.id);
+    setAvatarUrl(publicUrl);
+    flash("✅ Photo uploaded!");
+    setUploading(false);
+  };
 
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
 
@@ -224,6 +245,7 @@ function ProfilePage({ user, onClose }) {
       setBio(data.bio || "");
       setCohort(data.cohort || "");
       setAvatar(data.avatar || "🐅");
+      setAvatarUrl(data.avatar_url || null);
     }
   };
 
@@ -248,7 +270,7 @@ function ProfilePage({ user, onClose }) {
     setSaving(true);
     const { error } = await supabase
       .from("profiles")
-      .update({ full_name: fullName, bio, cohort, avatar })
+      .update({ full_name: fullName, bio, cohort, avatar, avatar_url: avatarUrl })
       .eq("id", user.id);
     if (error) { flash("❌ Error saving profile"); setSaving(false); return; }
 
@@ -279,7 +301,20 @@ function ProfilePage({ user, onClose }) {
       {/* Header */}
       <div style={pr.header}>
         <div style={pr.headerLeft}>
-          <span style={{ fontSize: 36 }}>{avatar}</span>
+          <div style={{ position: "relative", cursor: "pointer" }}
+            onClick={() => document.getElementById('avatar-upload').click()}>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="avatar"
+                style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", border: "3px solid rgba(255,255,255,0.3)" }} />
+            ) : (
+              <span style={{ fontSize: 48 }}>{avatar}</span>
+            )}
+            <div style={{ position: "absolute", bottom: 0, right: 0, background: "#C17F24", borderRadius: "50%", width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>
+              📷
+            </div>
+          </div>
+          <input id="avatar-upload" type="file" accept="image/*"
+            style={{ display: "none" }} onChange={handlePhotoUpload} />
           <div>
             <h1 style={pr.title}>My Profile</h1>
             <p style={pr.sub}>{user.email}</p>
@@ -331,17 +366,37 @@ function ProfilePage({ user, onClose }) {
             </div>
 
             <div style={pr.formGroup}>
-              <label style={pr.label}>Choose Your Avatar</label>
+              <label style={pr.label}>Profile Photo</label>
+              <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16 }}>
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="avatar"
+                    style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover", border: "3px solid #DBEAFE" }} />
+                ) : (
+                  <span style={{ fontSize: 48 }}>{avatar}</span>
+                )}
+                <div>
+                  <button style={{ ...pr.saveBtn, width: "auto", padding: "8px 16px", fontSize: 13, marginTop: 0 }}
+                    onClick={() => document.getElementById('avatar-upload').click()}
+                    disabled={uploading}>
+                    {uploading ? "Uploading..." : "📷 Upload Photo"}
+                  </button>
+                  <p style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>Max 2MB · JPG, PNG, GIF</p>
+                </div>
+              </div>
+            </div>
+
+            <div style={pr.formGroup}>
+              <label style={pr.label}>Or Choose an Avatar</label>
               <div style={pr.avatarGrid}>
                 {AVATARS.map(em => (
                   <span key={em} className="avatar-option"
-                    onClick={() => setAvatar(em)}
+                    onClick={() => { setAvatar(em); setAvatarUrl(null); }}
                     style={{
                       fontSize: 28,
                       padding: 6,
                       borderRadius: 8,
-                      background: avatar === em ? "#DBEAFE" : "transparent",
-                      border: avatar === em ? "2px solid #3B82F6" : "2px solid transparent",
+                      background: !avatarUrl && avatar === em ? "#DBEAFE" : "transparent",
+                      border: !avatarUrl && avatar === em ? "2px solid #3B82F6" : "2px solid transparent",
                     }}>
                     {em}
                   </span>
@@ -694,7 +749,7 @@ export default function App() {
     const { data } = await supabase.from("profiles").select("*").eq("id", userId).single();
     if (data) {
       setIsAdmin(data.is_admin || false);
-      setUserAvatar(data.avatar || "🐅");
+      setUserAvatar(data.avatar_url || data.avatar || "🐅");
       if (data.full_name) setName(data.full_name);
       if (data.cohort) setCohort(data.cohort);
     }
@@ -732,6 +787,7 @@ export default function App() {
       author_name: name.trim(),
       author_cohort: cohort.trim(),
       avatar: userAvatar,
+      avatar_url: typeof userAvatar === 'string' && userAvatar.startsWith('http') ? userAvatar : null,
       likes: 0,
       user_id: user?.id || null,
       user_email: user?.email || null,
@@ -975,7 +1031,14 @@ export default function App() {
                         }}>{style.badge}</div>
                       )}
                       <div style={s.cardHeader}>
-                        <div style={s.avatar}>{idea.avatar || "🐅"}</div>
+                        <div style={s.avatar}>
+                        {idea.avatar_url ? (
+                          <img src={idea.avatar_url} alt="avatar"
+                            style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover" }} />
+                        ) : (
+                          idea.avatar || "🐅"
+                        )}
+                      </div>
                         <div style={{ flex: 1 }}>
                           <div style={{ ...s.authorName, color: style.tag }}>
                             {idea.author_name || "Alumni"}
