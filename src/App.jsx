@@ -831,6 +831,14 @@ export default function App() {
   const fetchProfile = async (userId) => {
     const { data } = await supabase.from("profiles").select("*").eq("id", userId).single();
     if (data) {
+      // Check if user is banned
+      if (data.is_banned) {
+        await supabase.auth.signOut();
+        setUser(null);
+        setName("");
+        flash("🚫 Your account has been suspended. Please contact the administrator.");
+        return;
+      }
       setIsAdmin(data.is_admin || false);
       setUserAvatar(data.avatar_url || data.avatar || "🐅");
       if (data.full_name) setName(data.full_name);
