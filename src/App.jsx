@@ -151,12 +151,14 @@ function AuthScreen({ onAuth }) {
         options: { data: { full_name: name } }
       });
       if (error) { setError(error.message); setLoading(false); return; }
+      setLoading(false);
+      onAuth(true);
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) { setError(error.message); setLoading(false); return; }
+      setLoading(false);
+      onAuth(false);
     }
-    setLoading(false);
-    onAuth();
   };
 
   const handleForgotPassword = async () => {
@@ -226,7 +228,7 @@ function AuthScreen({ onAuth }) {
           await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-              redirectTo: 'https://thee-alumni-board.netlify.app'
+              redirectTo: 'https://thee-alumni-board.netlify.app?welcome=true'
             }
           });
         }}>
@@ -789,6 +791,12 @@ export default function App() {
         setName(session.user.user_metadata?.full_name || session.user.email);
         fetchProfile(session.user.id);
         fetchVotes(session.user.id);
+        // Show about page for new users coming from Google OAuth
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('welcome') === 'true') {
+          setView("about");
+          window.history.replaceState({}, '', window.location.pathname);
+        }
       }
       setAuthReady(true);
     });
@@ -933,7 +941,10 @@ export default function App() {
     </div>
   );
 
-  if (!user) return <AuthScreen onAuth={() => supabase.auth.getSession()} />;
+  if (!user) return <AuthScreen onAuth={(isNewUser) => {
+    supabase.auth.getSession();
+    if (isNewUser) setView("about");
+  }} />;
 
   return (
     <div style={s.root}>
