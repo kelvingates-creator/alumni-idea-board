@@ -233,8 +233,7 @@ function AuthScreen({ onAuth }) {
           });
         }}>
           <span style={{ fontSize: 18, fontWeight: 800, background: "linear-gradient(to right, #4285F4, #EA4335, #FBBC05, #34A853)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>G</span> Continue with Google
-              </button>
-        )}
+        </button>
       </div>
     </div>
   );
@@ -791,11 +790,14 @@ export default function App() {
         setName(session.user.user_metadata?.full_name || session.user.email);
         fetchProfile(session.user.id);
         fetchVotes(session.user.id);
-        // Show about page for new users coming from Google OAuth
+        // Show about page for brand new Google OAuth users only
         const params = new URLSearchParams(window.location.search);
         if (params.get('welcome') === 'true') {
-          setView("about");
           window.history.replaceState({}, '', window.location.pathname);
+          // Only show about if account was created in last 30 seconds
+          const createdAt = new Date(session.user.created_at).getTime();
+          const isNewUser = Date.now() - createdAt < 30000;
+          if (isNewUser) setView("about");
         }
       }
       setAuthReady(true);
