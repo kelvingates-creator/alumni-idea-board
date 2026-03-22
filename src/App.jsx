@@ -274,10 +274,15 @@ function ProfilePage({ user, onClose }) {
       .eq("id", user.id);
     if (error) { flash("❌ Error saving profile"); setSaving(false); return; }
 
-    // Also update ideas with new name and avatar
+    // Also update ideas with new name, avatar and photo
     await supabase
       .from("ideas")
-      .update({ author_name: fullName, author_cohort: cohort, avatar })
+      .update({ 
+        author_name: fullName, 
+        author_cohort: cohort, 
+        avatar,
+        avatar_url: avatarUrl || null
+      })
       .eq("user_id", user.id);
 
     flash("✅ Profile saved!");
