@@ -66,6 +66,73 @@ function HeartRow({ likes, ideaId, votedIds, onLike, heartColor, stage }) {
   );
 }
 
+// ── About Modal ──────────────────────────────────────────
+function AboutModal({ content, onClose, onLoad }) {
+  useEffect(() => { if (!content) onLoad(); }, []);
+
+  return (
+    <div style={ab.root}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;600&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+        button { font-family: 'DM Sans', sans-serif; }
+      `}</style>
+
+      {/* Header */}
+      <div style={ab.header}>
+        <div style={ab.headerLeft}>
+          <span style={{ fontSize: 32 }}>🐅</span>
+          <div>
+            <h1 style={ab.title}>{content?.title || "About THEE Alumni Network"}</h1>
+          </div>
+        </div>
+        <button style={ab.closeBtn} onClick={onClose}>← Back to Board</button>
+      </div>
+
+      {/* Content */}
+      <div style={ab.body}>
+        <div style={ab.card}>
+          {content ? (
+            <>
+              <div style={ab.bodyText}>
+                {content.body.split('\n').map((line, i) => (
+                  line.trim() === '' 
+                    ? <br key={i} />
+                    : <p key={i} style={{ marginBottom: 12, lineHeight: 1.7 }}>{line}</p>
+                ))}
+              </div>
+              <div style={ab.footer}>
+                <span style={ab.updated}>
+                  Last updated {new Date(content.updated_at).toLocaleDateString()}
+                </span>
+              </div>
+            </>
+          ) : (
+            <div style={{ textAlign: "center", padding: 40, color: "#6B7280" }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>⏳</div>
+              Loading...
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const ab = {
+  root: { minHeight: "100vh", width: "100vw", maxWidth: "100vw", background: "#F0F4FF", fontFamily: "'DM Sans', sans-serif" },
+  header: { background: "#1E3A8A", padding: "20px 32px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 },
+  headerLeft: { display: "flex", alignItems: "center", gap: 14 },
+  title: { fontFamily: "'Playfair Display', serif", fontSize: 26, fontWeight: 900, color: "#FFFFFF" },
+  closeBtn: { background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 8, padding: "8px 18px", color: "#fff", fontSize: 13, cursor: "pointer" },
+  body: { padding: "40px 32px", maxWidth: 800, margin: "0 auto" },
+  card: { background: "#fff", borderRadius: 16, padding: 40, boxShadow: "0 4px 32px rgba(0,0,0,0.08)", border: "1px solid #DBEAFE" },
+  bodyText: { fontSize: 15, color: "#374151", lineHeight: 1.7 },
+  footer: { marginTop: 32, paddingTop: 16, borderTop: "1px solid #DBEAFE" },
+  updated: { fontSize: 11, color: "#9CA3AF" },
+};
+
 // ── Auth Screen ──────────────────────────────────────────
 function AuthScreen({ onAuth }) {
   const [mode, setMode] = useState("signin");
@@ -711,6 +778,7 @@ export default function App() {
   const [tag, setTag] = useState(TAGS[0]);
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
+  const [aboutContent, setAboutContent] = useState(null);
 
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
 
@@ -776,6 +844,15 @@ export default function App() {
     setLoading(false);
   };
 
+  const fetchAbout = async () => {
+    const { data } = await supabase
+      .from("content")
+      .select("*")
+      .eq("key", "about")
+      .single();
+    if (data) setAboutContent(data);
+  };
+
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -833,6 +910,13 @@ export default function App() {
 
   if (view === "admin" && isAdmin) return <AdminPanel onClose={() => setView("board")} />;
   if (view === "profile") return <ProfilePage user={user} onClose={() => { setView("board"); fetchProfile(user.id); }} />;
+  if (view === "about") return (
+    <AboutModal
+      content={aboutContent}
+      onClose={() => setView("board")}
+      onLoad={fetchAbout}
+    />
+  );
 
   const filtered = ideas.filter(i => {
     const tagMatch = filterTag === "All" || i.tag === filterTag;
@@ -925,21 +1009,26 @@ export default function App() {
       {/* Stage Filter Bar */}
       <div style={s.stageBar}>
         <div style={s.stageBarInner}>
-          {[
-            { key: "All", label: "🗂 All", count: ideas.length },
-            { key: "idea", label: "💡 Ideas", count: ideas.filter(i => getStage(i.likes||0) === "idea").length },
-            { key: "collaborate", label: "🤝 Collaborating", count: colabCount },
-            { key: "win", label: "🎉 Wins", count: winCount },
-          ].map(stage => (
-            <button key={stage.key}
-              style={{ ...s.stageBtn, ...(filterStage === stage.key ? s.stageBtnActive : {}) }}
-              onClick={() => setFilterStage(stage.key)}>
-              {stage.label}
-              <span style={{ ...s.stagePill, ...(filterStage === stage.key ? s.stagePillActive : {}) }}>
-                {stage.count}
-              </span>
-            </button>
-          ))}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {[
+              { key: "All", label: "🗂 All", count: ideas.length },
+              { key: "idea", label: "💡 Ideas", count: ideas.filter(i => getStage(i.likes||0) === "idea").length },
+              { key: "collaborate", label: "🤝 Collaborating", count: colabCount },
+              { key: "win", label: "🎉 Wins", count: winCount },
+            ].map(stage => (
+              <button key={stage.key}
+                style={{ ...s.stageBtn, ...(filterStage === stage.key ? s.stageBtnActive : {}) }}
+                onClick={() => setFilterStage(stage.key)}>
+                {stage.label}
+                <span style={{ ...s.stagePill, ...(filterStage === stage.key ? s.stagePillActive : {}) }}>
+                  {stage.count}
+                </span>
+              </button>
+            ))}
+          </div>
+          <button style={s.aboutBtn} onClick={() => setView("about")}>
+            ℹ️ About
+          </button>
         </div>
       </div>
 
@@ -1100,7 +1189,7 @@ const s = {
   cancelBtn: { background: "transparent", color: "#BFDBFE", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 8, padding: "10px 20px", fontSize: 14, cursor: "pointer", whiteSpace: "nowrap" },
   signOutBtn: { background: "transparent", color: "#93C5FD", border: "1px solid rgba(147,197,253,0.3)", borderRadius: 8, padding: "8px 14px", fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" },
   stageBar: { background: "#1E3A8A", borderTop: "1px solid rgba(255,255,255,0.1)", padding: "0 24px 12px", width: "100%" },
-  stageBarInner: { display: "flex", gap: 8, flexWrap: "wrap" },
+  stageBarInner: { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" },
   stageBtn: { background: "transparent", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 20, padding: "5px 14px", fontSize: 12, color: "#BFDBFE", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 },
   stageBtnActive: { background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.4)", color: "#FFFFFF" },
   stagePill: { background: "rgba(255,255,255,0.1)", borderRadius: 10, padding: "1px 7px", fontSize: 11, color: "#93C5FD" },
@@ -1142,4 +1231,5 @@ const s = {
   emptySub: { fontSize: 14, color: "#6B7280", marginBottom: 16 },
   toast: { position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)", background: "#1E3A8A", color: "#FFFFFF", borderRadius: 8, padding: "11px 22px", fontSize: 14, fontWeight: 500, zIndex: 999, boxShadow: "0 8px 24px rgba(0,0,0,0.3)", whiteSpace: "nowrap", border: "1px solid rgba(147,197,253,0.3)" },
   footerNote: { textAlign: "center", fontSize: 11, color: "#93C5FD", padding: "0 0 24px", letterSpacing: "0.3px" },
+  aboutBtn: { background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 20, padding: "5px 14px", fontSize: 12, color: "#FFFFFF", cursor: "pointer", whiteSpace: "nowrap" },
 };
