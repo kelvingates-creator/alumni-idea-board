@@ -134,7 +134,7 @@ const ab = {
 };
 
 // ── Auth Screen ──────────────────────────────────────────
-function AuthScreen({ onAuth }) {
+function AuthScreen({ onAuth, banMessage }) {
   const [mode, setMode] = useState("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -203,6 +203,15 @@ function AuthScreen({ onAuth }) {
             value={password} onChange={e => setPassword(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleSubmit()} />
         </div>
+        {banMessage && (
+          <div style={{
+            ...a.error,
+            background: "#FEF2F2",
+            color: "#DC2626",
+            border: "1px solid #FECACA",
+            marginBottom: 16,
+          }}>{banMessage}</div>
+        )}
         {error && (
           <div style={{
             ...a.error,
@@ -780,6 +789,7 @@ export default function App() {
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
   const [aboutContent, setAboutContent] = useState(null);
+  const [banMessage, setBanMessage] = useState("");
 
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
 
@@ -836,7 +846,7 @@ export default function App() {
         await supabase.auth.signOut();
         setUser(null);
         setName("");
-        flash("🚫 Your account has been suspended. Please contact the administrator.");
+        setBanMessage("🚫 Your account has been suspended. Please contact the administrator.");
         return;
       }
       setIsAdmin(data.is_admin || false);
@@ -951,7 +961,8 @@ export default function App() {
     </div>
   );
 
-  if (!user) return <AuthScreen onAuth={(isNewUser) => {
+  if (!user) return <AuthScreen banMessage={banMessage} onAuth={(isNewUser) => {
+    setBanMessage("");
     supabase.auth.getSession();
     if (isNewUser) setView("about");
   }} />;
