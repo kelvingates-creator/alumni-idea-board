@@ -919,6 +919,14 @@ export default function App() {
       is_hidden: false,
     });
     if (error) { flash("❌ Error posting idea"); return; }
+
+    // Also save cohort to profile if filled in
+    if (cohort.trim() && user?.id) {
+      await supabase
+        .from("profiles")
+        .update({ cohort: cohort.trim() })
+        .eq("id", user.id);
+    }
     await fetchIdeas();
     setText("");
     setTag(TAGS[0]);
