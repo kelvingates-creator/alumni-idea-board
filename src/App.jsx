@@ -270,7 +270,9 @@ const a = {
 };
 
 // ── Profile Page ─────────────────────────────────────────
-function ProfilePage({ user, onClose }) {
+function ProfilePage({ user, onClose, viewingUser }) {
+  const targetUser = viewingUser || user;
+  const isViewingOther = !!viewingUser;
   const [profile, setProfile] = useState(null);
   const [fullName, setFullName] = useState("");
   const [bio, setBio] = useState("");
@@ -314,11 +316,11 @@ function ProfilePage({ user, onClose }) {
     const { data } = await supabase
       .from("profiles")
       .select("*")
-      .eq("id", user.id)
+      .eq("id", targetUser.id)
       .single();
     if (data) {
       setProfile(data);
-      setFullName(data.full_name || user.user_metadata?.full_name || "");
+      setFullName(data.full_name || targetUser.email || "");
       setBio(data.bio || "");
       setCohort(data.cohort || "");
       setAvatar(data.avatar || "🐅");
@@ -330,7 +332,7 @@ function ProfilePage({ user, onClose }) {
     const { data } = await supabase
       .from("ideas")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", targetUser.id)
       .order("created_at", { ascending: false });
     setMyIdeas(data || []);
   };
@@ -339,7 +341,7 @@ function ProfilePage({ user, onClose }) {
     const { count } = await supabase
       .from("votes")
       .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id);
+      .eq("user_id", targetUser.id);
     setMyVotes(count || 0);
   };
 
@@ -348,7 +350,7 @@ function ProfilePage({ user, onClose }) {
     const { error } = await supabase
       .from("profiles")
       .update({ full_name: fullName, bio, cohort, avatar, avatar_url: avatarUrl })
-      .eq("id", user.id);
+      .eq("id", targetUser.id);
     if (error) { flash("❌ Error saving profile"); setSaving(false); return; }
 
     // Also update ideas with new name, avatar and photo
@@ -360,7 +362,7 @@ function ProfilePage({ user, onClose }) {
         avatar,
         avatar_url: avatarUrl || null
       })
-      .eq("user_id", user.id);
+      .eq("user_id", targetUser.id);
 
     flash("✅ Profile saved!");
     setSaving(false);
@@ -398,8 +400,9 @@ function ProfilePage({ user, onClose }) {
           <input id="avatar-upload" type="file" accept="image/*"
             style={{ display: "none" }} onChange={handlePhotoUpload} />
           <div>
-            <h1 style={pr.title}>My Profile</h1>
-            <p style={pr.sub}>{user.email}</p>
+            <h1 style={pr.title}>{isViewingOther ? `${fullName || targetUser.email}'s Profile` : "My Profile"}</h1>
+            <p style={pr.sub}>{targetUser.email}</p>
+            {isViewingOther && <p style={{ fontSize: 11, color: "#FCD34D", marginTop: 4 }}>👑 Viewing as Admin</p>}
           </div>
         </div>
         <button style={pr.closeBtn} onClick={onClose}>← Back to Board</button>
@@ -569,12 +572,13 @@ const pr = {
 };
 
 // ── Admin Panel ──────────────────────────────────────────
-function AdminPanel({ onClose }) {
+function AdminPanel({ onClose, currentUser }) {
   const [activeTab, setActiveTab] = useState("ideas");
   const [ideas, setIdeas] = useState([]);
   const [users, setUsers] = useState([]);
   const [stats, setStats] = useState({});
   const [toast, setToast] = useState("");
+  const [viewingProfile, setViewingProfile] = useState(null);
 
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
 
@@ -624,6 +628,14 @@ function AdminPanel({ onClose }) {
     flash(user.is_admin ? "👤 Admin removed" : "👑 Admin granted");
     fetchAll();
   };
+
+  if (viewingProfile) return (
+    <ProfilePage
+      user={currentUser}
+      viewingUser={viewingProfile}
+      onClose={() => setViewingProfile(null)}
+    />
+  );
 
   return (
     <div style={p.root}>
@@ -724,6 +736,8 @@ function AdminPanel({ onClose }) {
                 </div>
               </div>
               <div style={p.rowActions}>
+                <button style={{ ...p.actionBtn, background: "#EFF6FF", color: "#1E3A8A" }}
+                  onClick={() => setViewingProfile(user)}>👤 View Profile</button>
                 <button style={{ ...p.actionBtn, background: user.is_admin ? "#FEF3C7" : "#F0F4FF", color: user.is_admin ? "#B45309" : "#1E3A8A" }}
                   onClick={() => toggleAdmin(user)}>{user.is_admin ? "Remove Admin" : "👑 Make Admin"}</button>
                 <button style={{ ...p.actionBtn, background: user.is_banned ? "#F0FDF4" : "#FEF2F2", color: user.is_banned ? "#166534" : "#DC2626" }}
@@ -936,7 +950,7 @@ export default function App() {
     flash("🗑 Removed");
   };
 
-  if (view === "admin" && isAdmin) return <AdminPanel onClose={() => setView("board")} />;
+  if (view === "admin" && isAdmin) return <AdminPanel onClose={() => setView("board")} currentUser={user} />;
   if (view === "profile") return <ProfilePage user={user} onClose={() => { setView("board"); fetchProfile(user.id); }} />;
   if (view === "about") return (
     <AboutModal
