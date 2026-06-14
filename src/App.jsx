@@ -6,6 +6,26 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
+// Creates this user's alumni profile on first login (replaces the old auth trigger).
+// Runs only on the alumni site, so a Whittgates Google signup can never create a row here.
+async function ensureProfile(user) {
+  if (!user) return;
+  const { data: existing } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (existing) return;
+  await supabase.from("profiles").insert({
+    id: user.id,
+    email: user.email,
+    full_name: user.user_metadata?.full_name ?? null,
+    avatar: "🐅",
+    is_admin: false,
+    is_banned: false,
+  });
+}
+
 const AVATARS = ["🐅","🎓","🧠","🚀","🌟","💼","🦁","🏆","🌍","⚡","🔥","💎","🎯","🦊","🐉","🎪","🌊","🦅","🎭","🏅"];
 const TAGS = ["💡 Idea", "🤝 Collaborate", "📢 Announce", "❓ Question"];
 const STAGE_THRESHOLDS = { collaborate: 5, win: 10 };
@@ -808,10 +828,11 @@ export default function App() {
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         setName(session.user.user_metadata?.full_name || session.user.email);
+        await ensureProfile(session.user);
         fetchProfile(session.user.id);
         fetchVotes(session.user.id);
         // Show about page for brand new Google OAuth users only
@@ -831,8 +852,11 @@ export default function App() {
       setUser(session?.user ?? null);
       if (session?.user) {
         setName(session.user.user_metadata?.full_name || session.user.email);
-        fetchProfile(session.user.id);
-        fetchVotes(session.user.id);
+        (async () => {
+          await ensureProfile(session.user);
+          fetchProfile(session.user.id);
+          fetchVotes(session.user.id);
+        })();
       } else {
         setIsAdmin(false);
         setVotedIds([]);
